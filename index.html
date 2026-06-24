@@ -225,6 +225,8 @@ function resetLevel(fullReset = false) {
 
 function handleAction() {
     if (clickCooldown > 0) return;
+    if (state === 3) return;
+
     if (state === 0) {
         resetLevel(true);
         sfx.playlist[sfx.currentTrack].play().catch(() => {});
@@ -254,9 +256,6 @@ function handleMenuSelection(clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
     const scaleY = canvas.height / rect.height;
     const mouseY = (clientY - rect.top) * scaleY;
-
-    sfx.jump.play().catch(() => {});
-    sfx.hit.play().catch(() => {});
 
     if (mouseY > 450 && mouseY < 550) {
         currentLevelTries++;
