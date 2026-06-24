@@ -85,14 +85,9 @@ function initAssets() {
 
     sfx.jump = new Audio("jump.ogg");
     sfx.hit = new Audio("obstaclehit.ogg");
-    
-    sfx.jump.preload = "auto";
-    sfx.hit.preload = "auto";
-
     sfx.playlist = [new Audio("music1.ogg"), new Audio("music2.ogg")];
     sfx.currentTrack = 0;
     sfx.playlist.forEach(track => {
-        track.preload = "auto";
         track.loop = false;
         track.addEventListener('ended', playNextTrack);
     });
@@ -228,16 +223,9 @@ function resetLevel(fullReset = false) {
     clickCooldown = 20;
 }
 
-function unlockAudioIOS() {
-    sfx.jump.play().then(() => { sfx.jump.pause(); sfx.jump.currentTime = 0; }).catch(() => {});
-    sfx.hit.play().then(() => { sfx.hit.pause(); sfx.hit.currentTime = 0; }).catch(() => {});
-}
-
 function handleAction() {
     if (clickCooldown > 0) return;
     if (state === 3) return;
-
-    unlockAudioIOS();
 
     if (state === 0) {
         resetLevel(true);
@@ -268,8 +256,6 @@ function handleMenuSelection(clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
     const scaleY = canvas.height / rect.height;
     const mouseY = (clientY - rect.top) * scaleY;
-
-    unlockAudioIOS();
 
     if (mouseY > 450 && mouseY < 550) {
         currentLevelTries++;
@@ -379,7 +365,6 @@ function updateAndRender() {
                 sfx.hit.play().catch(() => {});
                 state = 3;
                 clickCooldown = 20;
-                break;
             }
 
             if (obs.x < -400) obstacles.splice(i, 1);
