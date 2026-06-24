@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stranger Alps</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            font-family: monospace;
+        }
+        canvas {
+            background-color: rgb(5, 5, 20);
+            box-shadow: 0 0 20px rgba(255, 40, 40, 0.3);
+            max-width: 100%;
+            max-height: 100%;
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="gameCanvas" width="1600" height="900"></canvas>
+
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+// --- KONSTANTEN & DESIGN ---
+const FPS = 60;
+const GRAVITY = 1.6;
+const JUMP_STRENGTH = -39;
+
+const COLORS = {
+    SKY: "rgb(5, 5, 20)",
+    ALPS_FAR: "rgb(25, 25, 60)",
+    ALPS_NEAR: "rgb(40, 40, 90)",
+    SNOW: "rgb(160, 165, 175)",
+    TEXT: "rgb(255, 40, 40)",
+    WHITE: "rgb(255, 255, 255)",
+    GLOW_GREY: "rgb(180, 185, 200)",
+    ASH: "rgb(180, 180, 200)",
+    REC_RED: "rgb(220, 0, 0)"
+};
+
+// --- GAME STATE ---
+let state = 0; 
+let level = 1;
+let levelStartTicks = 0;
+let levelResults = [];
+let currentLevelTries = 1;
+let rocksSpawned = 0;
+const rocksNeeded = { 1: 10, 2: 15, 3: 20 };
+
+let GROUND_Y = 900 - 452;
+let dinoX = 100, dinoY = GROUND_Y;
+let dinoVelY = 0, isJumping = false, jumpAngle = 0;
+let obstacles = [], spawnTimer = 0, finishingLevel = false;
+let nextSpawnThreshold = 80;
+let clickCooldown = 0;
+
+// --- ASSETS LADEN ---
+const dinoImgs = {};
+const obsImgs = {};
+const sfx = {};
+
+function initAssets() {
+    const assetSources = {
+        dino1: "dino1.png", dino2: "dino2.png", dino3: "dino3.png",
+        dustin: "dustin.png", ghost: "ghost.png", demogorgon: "demogorgon.png"
+    };
+    
+    for (let key in assetSources) {
+        const img = new Image();
+        img.src = assetSources[key];
+        if(key.startsWith("dino")) dinoImgs[key.replace("dino","")] = img;
+        else {
+            if(key === "dustin") obsImgs[1] = img;
+            if(key === "ghost") obsImgs[2] = img;
+            if(key === "demogorgon") obsImgs[3] = img;
+        }
+    }
+
+    sfx.jump = new Audio("jump.ogg");
+    sfx.hit = new Audio("obstaclehit.ogg");
+    sfx.playlist = [new Audio("music1.ogg"), new Audio("music2.ogg")];
+    sfx.currentTrack = 0;
+    sfx.playlist.forEach(track => {
+        track.loop = false;
+        track.addEventListener('ended', playNextTrack);
+    });
+}
+
+function playNextTrack() {
+    if (state !== 0) {
+        sfx.playlist[sfx.currentTrack].pause();
+        sfx.currentTrack = (sfx.currentTrack + 1) % sfx.playlist.length;
+        sfx.playlist[sfx.currentTrack].play().catch(() => {});
+    }
+}
+
+// --- PARTIKEL & PARALLAX BERGE ---
+const ashParticles = [];
+for (let i = 0; i < 40; i++) {
+    ashParticles.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        speed: 1.0 + Math.random() * 3.0
+    });
+}
+
+class MountainLayer {
+    constructor(color, minH, maxH, speed, hasSnow = false) {
+        this.color = color;
+        this.speed = speed;
+        this.hasSnow = hasSnow;
+        this.mountountains = [];
+        this.offset = 0;
+        
+        let currX = 0;
+        while (currX < canvas.width * 2) {
+            let w = Math.floor(Math.random() * (900 - 500 + 1)) + 500;
+            let h = (Math.floor(Math.random() * (maxH - minH + 1)) + minH) * 2;
+            let peakX = currX + Math.floor(w / 2);
+            
+            let poly = [
+                {x: currX, y: 900 - 80},
+                {x: peakX, y: 900 - 80 - h},
+                {x: currX + w, y: 900 - 80}
+            ];
+            let snow = hasSnow ? [
+                {x: peakX - Math.floor(w / 8), y: 900 - 80 - h + h * 0.25},
+                {x: peakX, y: 900 - 80 - h},
+                {x: peakX + Math.floor(w / 8), y: 900 - 80 - h + h * 0.25}
+            ] : null;
+            
+            this.mountountains.push({poly, snow});
+            currX += w - 120;
+        }
+        this.totalWidth = currX;
+    }
+
+    update() {
+        let totalSpeed = this.speed * (1.2 + level * 0.2) * 2;
+        this.offset -= totalSpeed;
+        if (this.offset <= -this.totalWidth) this.offset += this.totalWidth;
+    }
+
+    draw() {
+        for (let xPos of [this.offset, this.offset + this.totalWidth]) {
+            for (let m of this.mountountains) {
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.moveTo(m.poly[0].x + xPos, m.poly[0].y);
+                ctx.lineTo(m.poly[1].x + xPos, m.poly[1].y);
+                ctx.lineTo(m.poly[2].x + xPos, m.poly[2].y);
+                ctx.closePath();
+                ctx.fill();
+                
+                if (m.snow) {
+                    ctx.fillStyle = COLORS.SNOW;
+                    ctx.beginPath();
+                    ctx.moveTo(m.snow[0].x + xPos, m.snow[0].y);
+                    ctx.lineTo(m.snow[1].x + xPos, m.snow[1].y);
+                    ctx.lineTo(m.snow[2].x + xPos, m.snow[2].y);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+            }
+        }
+    }
+}
+
+const farLayer = new MountainLayer(COLORS.ALPS_FAR, 60, 120, 0.4);
+const nearLayer = new MountainLayer(COLORS.ALPS_NEAR, 100, 200, 1.2, true);
+
+// --- HILFSFUNKTIONEN ---
+function formatTime(ms) {
+    let s = Math.floor(ms / 1000) % 60;
+    let m = Math.floor(ms / 60000);
+    let msPart = Math.floor((ms % 1000) / 10);
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}:${msPart.toString().padStart(2, '0')}`;
+}
+
+function drawNeonText(text, fontStr, color, x, y, spacing = 6, center = false) {
+    ctx.font = fontStr;
+    let totalW = 0;
+    for(let char of text) {
+        totalW += ctx.measureText(char).width + spacing;
+    }
+    totalW -= spacing;
+
+    let currX = center ? x - (totalW / 2) : x;
+    
+    for (let char of text) {
+        ctx.fillStyle = "rgb(255, 230, 230)";
+        ctx.fillText(char, currX, y);
+        ctx.fillStyle = color;
+        ctx.fillText(char, currX - 1, y - 1);
+        currX += ctx.measureText(char).width + spacing;
+    }
+}
+
+function resetLevel(fullReset = false) {
+    if (fullReset) {
+        level = 1;
+        levelResults = [];
+        currentLevelTries = 1;
+    }
+    GROUND_Y = level === 1 ? 900 - 452 : (level === 2 ? 900 - 400 : 900 - 350);
+    dinoY = GROUND_Y;
+    dinoVelY = 0;
+    isJumping = false;
+    jumpAngle = 0;
+    rocksSpawned = 0;
+    obstacles = [];
+    spawnTimer = 0;
+    finishingLevel = false;
+    
+    let minSpawn = level === 1 ? 45 : (level === 2 ? 65 : 55);
+    let maxSpawn = level === 1 ? 140 : (level === 2 ? 160 : 145);
+    nextSpawnThreshold = Math.floor(Math.random() * (maxSpawn - minSpawn + 1)) + minSpawn;
+    
+    levelStartTicks = Date.now();
+    clickCooldown = 20;
+}
+
+// --- INPUT-HANDLING ---
+function handleAction() {
+    if (clickCooldown > 0) return;
+
+    if (state === 0) {
+        resetLevel(true);
+        sfx.playlist[sfx.currentTrack].play().catch(() => {});
+        state = 1;
+    } else if (state === 1) {
+        if (!isJumping) {
+            isJumping = true;
+            dinoVelY = JUMP_STRENGTH;
+            sfx.jump.currentTime = 0;
+            sfx.jump.play().catch(() => {});
+        }
+    } else if (state === 2) {
+        if (level < 3) {
+            level++;
+            currentLevelTries = 1;
+            resetLevel(false);
+            state = 1;
+        } else {
+            resetLevel(true);
+            state = 0;
+        }
+    }
+}
+
+window.addEventListener("keydown", (e) => { if (e.code === "Space") handleAction(); });
+canvas.addEventListener("mousedown", handleAction);
+canvas.addEventListener("touchstart", (e) => { e.preventDefault(); handleAction(); });
+
+canvas.addEventListener("click", (e) => {
+    if (state !== 3 || clickCooldown > 0) return;
+    const rect = canvas.getBoundingClientRect();
+    const scaleY = canvas.height / rect.height;
+    const mouseY = (e.clientY - rect.top) * scaleY;
+
+    if (mouseY > 450 && mouseY < 550) {
+        currentLevelTries++;
+        resetLevel(false);
+        state = 1;
+    } else if (mouseY > 600 && mouseY < 700) {
+        resetLevel(true);
+        state = 0;
+    }
+});
+
+// --- GAME LOOP ---
+function updateAndRender() {
+    let ticks = Date.now();
+    if (clickCooldown > 0) clickCooldown--;
+
+    ctx.fillStyle = COLORS.SKY;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    let pulse = (Math.sin(ticks * 0.005) + 1) / 2;
+    let pulseCol = `rgb(${150 + 105 * pulse}, 40, 40)`;
+
+    // --- STATE LOGIC ---
+    if (state === 1) {
+        farLayer.update();
+        nearLayer.update();
+        
+        dinoVelY += GRAVITY;
+        dinoY += dinoVelY;
+        if (isJumping) jumpAngle -= 11;
+        if (dinoY >= GROUND_Y) {
+            dinoY = GROUND_Y;
+            isJumping = false;
+            jumpAngle = 0;
+        }
+
+        if (!finishingLevel) {
+            spawnTimer++;
+            if (spawnTimer > nextSpawnThreshold) {
+                let obsSize = level === 1 ? 280 : (level === 2 ? 350 : 330);
+                let obsY = level === 1 ? (900 - 80 - obsSize + 30) : (level === 2 ? (900 - 80 - obsSize + 20) : (900 - 80 - obsSize + 20));
+                
+                obstacles.push({
+                    x: canvas.width,
+                    y: obsY,
+                    w: obsSize,
+                    h: obsSize,
+                    type: level
+                });
+                spawnTimer = 0;
+                rocksSpawned++;
+                
+                let minSpawn = level === 1 ? 45 : (level === 2 ? 65 : 55);
+                let maxSpawn = level === 1 ? 140 : (level === 2 ? 160 : 145);
+                nextSpawnThreshold = Math.floor(Math.random() * (maxSpawn - minSpawn + 1)) + minSpawn;
+                
+                if (rocksSpawned >= rocksNeeded[level]) finishingLevel = true;
+            }
+        }
+
+        if (finishingLevel && obstacles.length === 0) {
+            let word = currentLevelTries === 1 ? "TRY" : "TRIES";
+            levelResults.push(`LEVEL ${level}: ${currentLevelTries} ${word} NEEDED`);
+            state = 2;
+        }
+
+        // Hindernisse updaten
+        for (let i = obstacles.length - 1; i >= 0; i--) {
+            let obs = obstacles[i];
+            
+            let speedMod = level === 1 ? 14.4 : (level === 2 ? 16.5 : 19.8);
+            obs.x -= speedMod;
+
+            let hitWidth = isJumping ? 70 : 140;
+            let hitHeight = isJumping ? 130 : 200;
+            let hitOffsetX = isJumping ? 135 : 100;
+            let hitOffsetY = isJumping ? 120 : 80;
+            
+            let dinoHitbox = { x: dinoX + hitOffsetX, y: dinoY + hitOffsetY, w: hitWidth, h: hitHeight };
+            let infY = level === 3 ? -20 : -90;
+            
+            let hMod = level === 1 ? 0.5 : (level === 2 ? 0.38 : 0.44);
+            let obsHitbox = {
+                x: obs.x + (obs.w * ((1 - hMod) / 2)), 
+                y: obs.y - (infY / 2), 
+                w: obs.w * hMod, 
+                h: obs.h + infY
+            };
+
+            // Kollisionsprüfung
+            if (dinoHitbox.x < obsHitbox.x + obsHitbox.w &&
+                dinoHitbox.x + dinoHitbox.w > obsHitbox.x &&
+                dinoHitbox.y < obsHitbox.y + obsHitbox.h &&
+                dinoHitbox.y + dinoHitbox.h > obsHitbox.y) {
+                sfx.hit.currentTime = 0;
+                sfx.hit.play().catch(() => {});
+                state = 3;
+                clickCooldown = 20;
+            }
+
+            if (obs.x < -400) obstacles.splice(i, 1);
+        }
+    }
+
+    // --- DRAWING ---
+    ctx.fillStyle = "rgb(230, 230, 230)";
+    ctx.beginPath(); ctx.arc(canvas.width - 200, 220, 70, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = COLORS.SKY;
+    ctx.beginPath(); ctx.arc(canvas.width - 164, 220, 70, 0, Math.PI * 2); ctx.fill();
+
+    farLayer.draw();
+    nearLayer.draw();
+
+    ctx.fillStyle = "rgb(5, 5, 15)";
+    ctx.fillRect(0, canvas.height - 80, canvas.width, 80);
+
+    ctx.fillStyle = COLORS.ASH;
+    for (let p of ashParticles) {
+        if (state === 1) p.x -= p.speed;
+        if (p.x < 0) {
+            p.x = canvas.width;
+            p.y = Math.random() * canvas.height;
+        }
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    let dImg = dinoImgs[level];
+    if (dImg && dImg.complete) {
+        ctx.save();
+        let size = level === 1 ? 390 : (level === 2 ? 340 : 290);
+        ctx.translate(dinoX + size / 2, dinoY + size / 2);
+        ctx.rotate((jumpAngle * Math.PI) / 180);
+        ctx.drawImage(dImg, -size / 2, -size / 2, size, size);
+        ctx.restore();
+    }
+
+    // Hindernisse zeichnen
+    for (let obs of obstacles) {
+        let oImg = obsImgs[obs.type];
+        if (oImg && oImg.complete) {
+            let yF = obs.type === 2 ? Math.sin(ticks * 0.003) * 12 : 0;
+            ctx.drawImage(oImg, obs.x, obs.y + yF, obs.w, obs.h);
+        }
+    }
+
+    // --- UI SCHRIFTEN ---
+    let uiColor = state === 1 ? COLORS.TEXT : COLORS.GLOW_GREY;
+    if (state === 1 && Math.floor(ticks / 600) % 2 === 0) {
+        ctx.fillStyle = COLORS.REC_RED;
+        ctx.beginPath(); ctx.arc(70, 36 + 22, 14, 0, Math.PI * 2); ctx.fill();
+    }
+    
+    drawNeonText("REC", "44px monospace", uiColor, 110, 65);
+    drawNeonText(`LEVEL ${level}`, "44px monospace", uiColor, canvas.width / 2, 65, 6, true);
+    let timeStr = formatTime(state === 1 ? (Date.now() - levelStartTicks) : 0);
+    drawNeonText(timeStr, "44px monospace", uiColor, canvas.width - 440, 65);
+
+    // --- OVERLAYS FOR STATES ---
+    if (state === 0) {
+        ctx.fillStyle = "rgba(5, 0, 0, 0.97)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        drawNeonText("Music prod. by erra", "32px monospace", COLORS.WHITE, canvas.width / 2, 60, 4, true);
+        drawNeonText("STRANGER", "112px Georgia", COLORS.TEXT, canvas.width / 2, 170, 30, true);
+        drawNeonText("ALPS", "112px Georgia", COLORS.TEXT, canvas.width / 2, 290, 30, true);
+        
+        drawNeonText("You're a dinosaur stuck in the Upside Down!", "44px monospace", "rgb(200, 200, 200)", canvas.width / 2, 390, 4, true);
+        drawNeonText("Complete 3 challenges to find your way home.", "44px monospace", "rgb(200, 200, 200)", canvas.width / 2, 470, 4, true);
+        drawNeonText("FIRST MISSION: Jump over Dustin", "44px monospace", COLORS.WHITE, canvas.width / 2, 570, 4, true);
+        drawNeonText("CLICK/TAP the screen or press the SPACE bar", "44px monospace", COLORS.TEXT, canvas.width / 2, 630, 4, true);
+        drawNeonText("to jump", "44px monospace", COLORS.TEXT, canvas.width / 2, 690, 4, true);
+        
+        drawNeonText("CONTINUE", "96px Georgia", pulseCol, canvas.width / 2, 810, 10, true);
+    } 
+    else if (state === 2) {
+        ctx.fillStyle = "rgba(0, 0, 0, 0.97)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        let title = level === 3 ? "GATE CLOSED" : "MISSION SUCCESS";
+        let instr = level === 3 ? ["", "You've successfully escaped", "the Upside Down!"] :
+                    (level === 1 ? ["Next: Leap over the Phoebe Bridgers ghost...", "or is it Eleven wearing a Halloween costume?", "Either way, jump!"] :
+                                   ["You're almost at the finish line!", "Jump over the Demogorgons to close the gate!", ""]);
+        
+        drawNeonText(title, "112px Georgia", COLORS.TEXT, canvas.width / 2, 180, 20, true);
+        
+        levelResults.forEach((res, i) => {
+            drawNeonText(res, "44px monospace", "rgb(150, 150, 150)", canvas.width / 2, 300 + (i * 70), 8, true);
+        });
+        
+        instr.forEach((line, i) => {
+            drawNeonText(line, "44px monospace", "rgb(220, 220, 220)", canvas.width / 2, 520 + (i * 70), 4, true);
+        });
+        
+        let btnText = level === 3 ? "RESTART" : "CONTINUE";
+        drawNeonText(btnText, "96px Georgia", pulseCol, canvas.width / 2, 810, 10, true);
+    } 
+    else if (state === 3) {
+        ctx.fillStyle = "rgba(45, 0, 0, 0.94)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        drawNeonText("MISSION FAILED", "112px Georgia", COLORS.TEXT, canvas.width / 2, 250, 12, true);
+        drawNeonText("RETRY LEVEL", "44px monospace", COLORS.WHITE, canvas.width / 2, 530, 10, true);
+        drawNeonText("RESTART GAME", "44px monospace", COLORS.WHITE, canvas.width / 2, 650, 10, true);
+    }
+
+    requestAnimationFrame(updateAndRender);
+}
+
+// Start
+initAssets();
+resetLevel(true);
+requestAnimationFrame(updateAndRender);
+</script>
+
+</body>
+</html>
