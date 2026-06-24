@@ -277,10 +277,10 @@ canvas.addEventListener("mousedown", (e) => {
     }
 });
 
-canvas.addEventListener("touchend", (e) => {
+canvas.addEventListener("touchstart", (e) => {
     e.preventDefault();
     if (state === 3) {
-        const touch = e.changedTouches[0];
+        const touch = e.touches[0];
         handleMenuSelection(touch.clientX, touch.clientY);
     } else {
         handleAction();
