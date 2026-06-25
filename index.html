@@ -78,6 +78,7 @@ const sfx = {
 };
 
 function initAudioContext() {
+    if (audioCtx && audioCtx.state === 'running') return;
     if (!audioCtx) {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     }
