@@ -713,13 +713,13 @@ function updateAndRender() {
         });
         
         instr.forEach((line, i) => {
-            let baseInstrY = level === 3 ? 310 : 390;
+            let baseInstrY = level === 3 ? 320 : 390;
             drawNeonText(line, "44px 'Share Tech Mono', monospace", "rgb(200, 190, 195)", canvas.width / 2, baseInstrY + (i * 45), 4, true);
         });
 
         if (level === 3) {
             const positionsX = [220, canvas.width / 2, canvas.width - 220];
-            const positionsY = [520, 580, 520];
+            const positionsY = [555, 555, 555];
             [1, 2, 3].forEach((dinoId, idx) => {
                 let dImg = dinoImgs[dinoId];
                 if (dImg && dImg.complete) {
