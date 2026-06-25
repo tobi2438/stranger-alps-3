@@ -254,6 +254,31 @@ function drawNeonText(text, fontStr, color, x, y, spacing = 6, center = false) {
     ctx.restore();
 }
 
+function drawStrangerBars() {
+    ctx.save();
+    ctx.strokeStyle = "rgb(242, 17, 17)";
+    ctx.lineWidth = 5;
+    ctx.shadowColor = "rgba(242, 17, 17, 0.9)";
+    ctx.shadowBlur = 20;
+
+    ctx.beginPath();
+    ctx.moveTo(canvas.width / 2 - 420, 85);
+    ctx.lineTo(canvas.width / 2 + 420, 85);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(canvas.width / 2 - 470, 85);
+    ctx.lineTo(canvas.width / 2 - 470, 215);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(canvas.width / 2 + 470, 85);
+    ctx.lineTo(canvas.width / 2 + 470, 215);
+    ctx.stroke();
+
+    ctx.restore();
+}
+
 function drawVignette() {
     let vignette = ctx.createRadialGradient(canvas.width/2, canvas.height/2, canvas.width/4, canvas.width/2, canvas.height/2, canvas.width * 0.8);
     vignette.addColorStop(0, "rgba(0,0,0,0)");
@@ -367,6 +392,49 @@ canvas.addEventListener("touchstart", (e) => {
     }
 });
 
+function drawBreakdancingDino(ticks) {
+    let dImg = dinoImgs[3];
+    if (!dImg || !dImg.complete) return;
+
+    ctx.save();
+    let size = 350;
+    let x = canvas.width / 2;
+    let y = 430;
+
+    let cycle = (ticks % 1200) / 1200;
+    let angle = 0;
+    let offsetX = 0;
+    let offsetY = 0;
+    let scaleX = 1;
+    let scaleY = 1;
+
+    if (cycle < 0.25) {
+        let p = cycle / 0.25;
+        angle = p * Math.PI * 2;
+        offsetY = Math.sin(p * Math.PI) * -40;
+    } else if (cycle < 0.5) {
+        let p = (cycle - 0.25) / 0.25;
+        angle = Math.PI;
+        offsetX = Math.sin(p * Math.PI * 2) * 60;
+        offsetY = 50;
+    } else if (cycle < 0.75) {
+        let p = (cycle - 0.5) / 0.25;
+        angle = -Math.PI / 4 + Math.sin(p * Math.PI * 4) * 0.3;
+        scaleY = 0.8 + Math.sin(p * Math.PI * 2) * 0.2;
+    } else {
+        let p = (cycle - 0.75) / 0.25;
+        scaleX = p < 0.5 ? -1 : 1;
+        offsetY = Math.sin(p * Math.PI) * -80;
+        angle = Math.sin(p * Math.PI * 2) * 0.5;
+    }
+
+    ctx.translate(x + offsetX, y + offsetY);
+    ctx.rotate(angle);
+    ctx.scale(scaleX, scaleY);
+    ctx.drawImage(dImg, -size / 2, -size / 2, size, size);
+    ctx.restore();
+}
+
 function drawScene(ticks) {
     ctx.fillStyle = COLORS.SKY;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -415,14 +483,16 @@ function drawScene(ticks) {
         ctx.fill();
     }
 
-    let dImg = dinoImgs[level];
-    if (dImg && dImg.complete) {
-        ctx.save();
-        let size = level === 1 ? 390 : (level === 2 ? 340 : 290);
-        ctx.translate(dinoX + size / 2, dinoY + size / 2);
-        ctx.rotate(((jumpAngle % 360) * Math.PI) / 180);
-        ctx.drawImage(dImg, -size / 2, -size / 2, size, size);
-        ctx.restore();
+    if (state !== 2 || level !== 3) {
+        let dImg = dinoImgs[level];
+        if (dImg && dImg.complete) {
+            ctx.save();
+            let size = level === 1 ? 390 : (level === 2 ? 340 : 290);
+            ctx.translate(dinoX + size / 2, dinoY + size / 2);
+            ctx.rotate(((jumpAngle % 360) * Math.PI) / 180);
+            ctx.drawImage(dImg, -size / 2, -size / 2, size, size);
+            ctx.restore();
+        }
     }
 
     for (let obs of obstacles) {
@@ -543,15 +613,7 @@ function updateAndRender() {
         
         drawNeonText("Music prod. by erra", "32px 'Share Tech Mono', monospace", "rgb(130, 110, 115)", canvas.width / 2, 60, 4, true);
         
-        ctx.lineWidth = 5;
-        ctx.strokeStyle = "rgb(242, 17, 17)";
-        ctx.shadowColor = "rgba(242, 17, 17, 0.8)";
-        ctx.shadowBlur = 15;
-        ctx.beginPath();
-        ctx.moveTo(canvas.width / 2 - 400, 85);
-        ctx.lineTo(canvas.width / 2 + 400, 85);
-        ctx.stroke();
-        ctx.shadowBlur = 0;
+        drawStrangerBars();
 
         drawNeonText("STRANGER", "125px 'Benguiat', 'Georgia', serif", COLORS.TEXT, canvas.width / 2, 205, 18, true);
         drawNeonText("ALPS", "125px 'Benguiat', 'Georgia', serif", COLORS.TEXT, canvas.width / 2, 335, 18, true);
@@ -567,20 +629,35 @@ function updateAndRender() {
         ctx.fillStyle = "rgba(4, 1, 3, 0.96)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
-        let title = level === 3 ? "GATE CLOSED" : "MISSION SUCCESS";
-        let instr = level === 3 ? ["", "You've successfully escaped", "the Upside Down!"] :
-                    (level === 1 ? ["Next: Leap over the Phoebe Bridgers ghost...", "or is it Eleven wearing a Halloween costume?", "Either way, jump!"] :
-                                   ["You're almost at the finish line!", "Jump over the Demogorgons to close the gate!", ""]);
-        
-        drawNeonText(title, "112px 'Benguiat', 'Georgia', serif", COLORS.TEXT, canvas.width / 2, 180, 20, true);
-        levelResults.forEach((res, i) => {
-            drawNeonText(res, "44px 'Share Tech Mono', monospace", "rgb(140, 120, 125)", canvas.width / 2, 300 + (i * 70), 8, true);
-        });
-        instr.forEach((line, i) => {
-            drawNeonText(line, "44px 'Share Tech Mono', monospace", "rgb(200, 190, 195)", canvas.width / 2, 520 + (i * 70), 4, true);
-        });
-        let btnText = level === 3 ? "RESTART" : "CONTINUE";
-        drawNeonText(btnText, "96px 'Benguiat', 'Georgia', serif", pulseCol, canvas.width / 2, 810, 10, true);
+        if (level === 3) {
+            drawBreakdancingDino(ticks);
+            
+            drawNeonText("GATE CLOSED", "112px 'Benguiat', 'Georgia', serif", COLORS.TEXT, canvas.width / 2, 150, 20, true);
+            
+            levelResults.forEach((res, i) => {
+                drawNeonText(res, "44px 'Share Tech Mono', monospace", "rgb(140, 120, 125)", canvas.width / 2, 230 + (i * 55), 8, true);
+            });
+            
+            let finalInstr = ["", "You've successfully escaped", "the Upside Down!"];
+            finalInstr.forEach((line, i) => {
+                drawNeonText(line, "44px 'Share Tech Mono', monospace", "rgb(200, 190, 195)", canvas.width / 2, 590 + (i * 55), 4, true);
+            });
+            
+            drawNeonText("RESTART", "96px 'Benguiat', 'Georgia', serif", pulseCol, canvas.width / 2, 830, 10, true);
+        } else {
+            let title = "MISSION SUCCESS";
+            let instr = level === 1 ? ["Next: Leap over the Phoebe Bridgers ghost...", "or is it Eleven wearing a Halloween costume?", "Either way, jump!"] :
+                        ["You're almost at the finish line!", "Jump over the Demogorgons to close the gate!", ""];
+            
+            drawNeonText(title, "112px 'Benguiat', 'Georgia', serif", COLORS.TEXT, canvas.width / 2, 180, 20, true);
+            levelResults.forEach((res, i) => {
+                drawNeonText(res, "44px 'Share Tech Mono', monospace", "rgb(140, 120, 125)", canvas.width / 2, 300 + (i * 70), 8, true);
+            });
+            instr.forEach((line, i) => {
+                drawNeonText(line, "44px 'Share Tech Mono', monospace", "rgb(200, 190, 195)", canvas.width / 2, 520 + (i * 70), 4, true);
+            });
+            drawNeonText("CONTINUE", "96px 'Benguiat', 'Georgia', serif", pulseCol, canvas.width / 2, 810, 10, true);
+        }
     } 
     else if (state === 3) {
         ctx.fillStyle = "rgba(18, 2, 4, 0.78)";
