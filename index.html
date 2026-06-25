@@ -304,7 +304,7 @@ function triggerHit() {
 function downloadScreenshot() {
     try {
         let ticks = Date.now();
-        drawScene(ticks);
+        drawScene(ticks, true);
         
         ctx.fillStyle = "rgba(4, 1, 3, 0.96)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -468,7 +468,7 @@ canvas.addEventListener("touchstart", (e) => {
     }
 });
 
-function drawScene(ticks) {
+function drawScene(ticks, isScreenshot = false) {
     ctx.fillStyle = COLORS.SKY;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -516,21 +516,23 @@ function drawScene(ticks) {
         ctx.fill();
     }
 
-    let dImg = dinoImgs[level];
-    if (dImg && dImg.complete) {
-        ctx.save();
-        let size = level === 1 ? 390 : (level === 2 ? 340 : 290);
-        ctx.translate(dinoX + size / 2, dinoY + size / 2);
-        ctx.rotate(((jumpAngle % 360) * Math.PI) / 180);
-        ctx.drawImage(dImg, -size / 2, -size / 2, size, size);
-        ctx.restore();
-    }
+    if (!isScreenshot) {
+        let dImg = dinoImgs[level];
+        if (dImg && dImg.complete) {
+            ctx.save();
+            let size = level === 1 ? 390 : (level === 2 ? 340 : 290);
+            ctx.translate(dinoX + size / 2, dinoY + size / 2);
+            ctx.rotate(((jumpAngle % 360) * Math.PI) / 180);
+            ctx.drawImage(dImg, -size / 2, -size / 2, size, size);
+            ctx.restore();
+        }
 
-    for (let obs of obstacles) {
-        let oImg = obsImgs[obs.type];
-        if (oImg && oImg.complete) {
-            let yF = obs.type === 2 ? Math.sin(ticks * 0.003) * 12 : 0;
-            ctx.drawImage(oImg, obs.x, obs.y + yF, obs.w, obs.h);
+        for (let obs of obstacles) {
+            let oImg = obsImgs[obs.type];
+            if (oImg && oImg.complete) {
+                let yF = obs.type === 2 ? Math.sin(ticks * 0.003) * 12 : 0;
+                ctx.drawImage(oImg, obs.x, obs.y + yF, obs.w, obs.h);
+            }
         }
     }
 
