@@ -103,6 +103,7 @@ function initAssets() {
     };
     for (let key in assetSources) {
         const img = new Image();
+        img.crossOrigin = "anonymous";
         img.src = assetSources[key];
         if(key.startsWith("dino")) dinoImgs[key.replace("dino","")] = img;
         else {
@@ -296,6 +297,18 @@ function triggerHit() {
     clickCooldown = 25;
 }
 
+function downloadScreenshot() {
+    try {
+        const dataUrl = canvas.toDataURL("image/png");
+        const link = document.createElement("a");
+        link.download = "stranger-alps-victory.png";
+        link.href = dataUrl;
+        link.click();
+    } catch (e) {
+        console.error(e);
+    }
+}
+
 function handleAction() {
     if (clickCooldown > 0) return;
     if (state === 3) return;
@@ -311,32 +324,45 @@ function handleAction() {
             dinoVelY = JUMP_STRENGTH;
             playSFX('jump');
         }
-    } else if (state === 2) {
-        if (level < 3) {
-            level++;
-            currentLevelTries = 1;
-            resetLevel(false);
-            state = 1;
-        } else {
-            resetLevel(true);
-            state = 0;
-        }
     }
 }
 
 function handleMenuSelection(clientX, clientY) {
-    if (state !== 3 || clickCooldown > 0) return;
+    if (clickCooldown > 0) return;
     const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
+    const mouseX = (clientX - rect.left) * scaleX;
     const mouseY = (clientY - rect.top) * scaleY;
 
-    if (mouseY > 450 && mouseY < 550) {
-        currentLevelTries++;
-        resetLevel(false);
-        state = 1;
-    } else if (mouseY > 600 && mouseY < 700) {
-        resetLevel(true);
-        state = 0;
+    if (state === 3) {
+        if (mouseY > 480 && mouseY < 560) {
+            currentLevelTries++;
+            resetLevel(false);
+            state = 1;
+        } else if (mouseY > 600 && mouseY < 680) {
+            resetLevel(true);
+            state = 0;
+        }
+    } 
+    else if (state === 2) {
+        if (level === 3) {
+            if (mouseY > 660 && mouseY < 740 && mouseX > 400 && mouseX < 1200) {
+                downloadScreenshot();
+                clickCooldown = 15;
+            }
+            else if (mouseY > 770 && mouseY < 880 && mouseX > 400 && mouseX < 1200) {
+                resetLevel(true);
+                state = 0;
+            }
+        } else {
+            if (mouseY > 760 && mouseY < 880) {
+                level++;
+                currentLevelTries = 1;
+                resetLevel(false);
+                state = 1;
+            }
+        }
     }
 }
 
@@ -349,7 +375,7 @@ window.addEventListener("keydown", (e) => {
 
 canvas.addEventListener("mousedown", (e) => {
     initAudioContext();
-    if (state === 3) {
+    if (state === 3 || state === 2) {
         handleMenuSelection(e.clientX, e.clientY);
     } else {
         handleAction();
@@ -359,8 +385,8 @@ canvas.addEventListener("mousedown", (e) => {
 canvas.addEventListener("touchstart", (e) => {
     e.preventDefault();
     initAudioContext();
-    if (state === 3) {
-        const touch = e.touches[0];
+    const touch = e.touches[0];
+    if (state === 3 || state === 2) {
         handleMenuSelection(touch.clientX, touch.clientY);
     } else {
         handleAction();
@@ -541,7 +567,7 @@ function updateAndRender() {
         ctx.fillStyle = "rgba(4, 1, 3, 0.95)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
-        drawNeonText("Music prod. by erra", "32px 'Share Tech Mono', monospace", "rgb(130, 110, 115)", canvas.width / 2, 60, 4, true);
+        drawNeonText("Music prod. by erra", "32px 'Share Tech Mono', monospace", "rgb(180, 170, 175)", canvas.width / 2, 60, 4, true);
         
         ctx.font = "125px 'Benguiat', 'Georgia', serif";
         let wStranger = 0;
@@ -582,7 +608,7 @@ function updateAndRender() {
         drawNeonText("ALPS", "125px 'Benguiat', 'Georgia', serif", COLORS.TEXT, canvas.width / 2, 335, 18, true);
         
         drawNeonText("You're a dinosaur stuck in the Upside Down!", "42px 'Share Tech Mono', monospace", "rgb(180, 170, 175)", canvas.width / 2, 430, 4, true);
-        drawNeonText("Complete 3 challenges to find your way home.", "42px 'Share Tech Mono', monospace", "rgb(180, 170, 175)", canvas.width / 2, 500, 4, true);
+        drawNeonText("Complete 3 challenges to find your way home!", "42px 'Share Tech Mono', monospace", "rgb(180, 170, 175)", canvas.width / 2, 500, 4, true);
         drawNeonText("FIRST MISSION: Jump over Dustin", "44px 'Share Tech Mono', monospace", COLORS.WHITE, canvas.width / 2, 590, 4, true);
         drawNeonText("CLICK/TAP the screen or press the SPACE bar", "42px 'Share Tech Mono', monospace", COLORS.TEXT, canvas.width / 2, 660, 4, true);
         drawNeonText("to jump", "42px 'Share Tech Mono', monospace", COLORS.TEXT, canvas.width / 2, 710, 4, true);
@@ -615,8 +641,8 @@ function updateAndRender() {
         });
 
         if (level === 3) {
-            const positionsX = [canvas.width / 2 - 420, canvas.width / 2, canvas.width / 2 + 420];
-            const positionsY = [435, 600, 435];
+            const positionsX = [220, canvas.width / 2, canvas.width - 220];
+            const positionsY = [520, 390, 520];
             [1, 2, 3].forEach((dinoId, idx) => {
                 let dImg = dinoImgs[dinoId];
                 if (dImg && dImg.complete) {
@@ -632,15 +658,18 @@ function updateAndRender() {
                     
                     ctx.rotate(Math.sin(ticks * 0.007) * 0.08);
                     
-                    let baseSize = (idx === 0 || idx === 1) ? 275 : 250;
+                    let baseSize = (idx === 1) ? 230 : 275;
                     ctx.drawImage(dImg, -baseSize / 2, -baseSize / 2, baseSize, baseSize);
                     ctx.restore();
                 }
             });
-        }
 
-        let btnText = level === 3 ? "RESTART" : "CONTINUE";
-        drawNeonText(btnText, "96px 'Benguiat', 'Georgia', serif", pulseCol, canvas.width / 2, 840, 10, true);
+            drawNeonText("SHARE RESULTS", "54px 'Share Tech Mono', monospace", "rgb(255, 235, 235)", canvas.width / 2, 720, 6, true);
+            drawNeonText("RESTART GAME!", "96px 'Benguiat', 'Georgia', serif", pulseCol, canvas.width / 2, 840, 10, true);
+        } else {
+            let btnText = "CONTINUE";
+            drawNeonText(btnText, "96px 'Benguiat', 'Georgia', serif", pulseCol, canvas.width / 2, 840, 10, true);
+        }
     } 
     else if (state === 3) {
         ctx.fillStyle = "rgba(18, 2, 4, 0.78)";
