@@ -235,8 +235,9 @@ function handleAction() {
         if (!isJumping) {
             isJumping = true;
             dinoVelY = JUMP_STRENGTH;
-            sfx.jump.currentTime = 0;
-            sfx.jump.play().catch(() => {});
+            // Fixed iOS playback bug by cloning the preloaded audio instance
+            const jumpSound = sfx.jump.cloneNode(true);
+            jumpSound.play().catch(() => {});
         }
     } else if (state === 2) {
         if (level < 3) {
