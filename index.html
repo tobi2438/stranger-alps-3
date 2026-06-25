@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Stranger Alps</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Benguiat:wght@700&family=Share+Tech+Mono&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Benguiat:wght=700&family=Share+Tech+Mono&display=swap');
         body {
             margin: 0;
             padding: 0;
@@ -40,10 +40,10 @@ const FPS = 60;
 const GRAVITY = 1.6;
 const JUMP_STRENGTH = -39;
 const COLORS = {
-    SKY: "rgb(4, 2, 10)",
-    ALPS_FAR: "rgb(45, 48, 57)",    
-    ALPS_NEAR: "rgb(25, 27, 33)",   
-    SNOW: "rgb(90, 95, 105)", 
+    SKY: "rgb(6, 2, 12)",
+    ALPS_FAR: "rgb(74, 34, 42)",    
+    ALPS_NEAR: "rgb(48, 16, 24)",   
+    SNOW: "rgb(156, 44, 58)", 
     TEXT: "rgb(242, 17, 17)",
     WHITE: "rgb(255, 235, 235)",
     GLOW_GREY: "rgb(150, 130, 135)",
@@ -65,10 +65,8 @@ let obstacles = [], spawnTimer = 0, finishingLevel = false;
 let nextSpawnThreshold = 80;
 let clickCooldown = 0;
 
-// Screen Shake and Flash variables
 let shakeTimer = 0;
 let shakeIntensity = 0;
-let flashTimer = 0;
 
 const dinoImgs = {};
 const obsImgs = {};
@@ -246,10 +244,9 @@ function drawNeonText(text, fontStr, color, x, y, spacing = 6, center = false, g
         ctx.shadowBlur = 8;
     }
 
-    // Cinematic text glitching effect for the title screen
-    if (glitch && Math.random() < 0.08) {
-        currX += (Math.random() - 0.5) * 12;
-        y += (Math.random() - 0.5) * 4;
+    if (glitch && Math.random() < 0.015) {
+        currX += (Math.random() - 0.5) * 4;
+        y += (Math.random() - 0.5) * 2;
     }
 
     for (let char of text) {
@@ -267,7 +264,6 @@ function drawNeonText(text, fontStr, color, x, y, spacing = 6, center = false, g
 }
 
 function drawVignette() {
-    // Punisher inspired atmospheric vignette
     let vignette = ctx.createRadialGradient(canvas.width/2, canvas.height/2, canvas.width/4, canvas.width/2, canvas.height/2, canvas.width * 0.8);
     vignette.addColorStop(0, "rgba(0,0,0,0)");
     vignette.addColorStop(0.6, "rgba(20, 2, 2, 0.3)");
@@ -303,9 +299,8 @@ function resetLevel(fullReset = false) {
 function triggerHit() {
     initAudioContext();
     playSFX('hit');
-    shakeTimer = 25; // 25 frames of screen shake
-    shakeIntensity = 15;
-    flashTimer = 15; // 15 frames of bright red flash
+    shakeTimer = 12;
+    shakeIntensity = 6;
     state = 3;
     clickCooldown = 25;
 }
@@ -381,25 +376,82 @@ canvas.addEventListener("touchstart", (e) => {
     }
 });
 
+function drawScene(ticks) {
+    ctx.fillStyle = COLORS.SKY;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    farLayer.draw();  
+    nearLayer.draw();
+
+    ctx.fillStyle = "rgb(26, 15, 12)";
+    ctx.beginPath();
+    ctx.moveTo(0, canvas.height);
+    for (let x = 0; x <= canvas.width; x += 40) {
+        let soilWave = Math.sin(x * 0.005) * 3 + Math.cos(x * 0.01) * 2;
+        ctx.lineTo(x, canvas.height - 80 + soilWave);
+    }
+    ctx.lineTo(canvas.width, canvas.height);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.strokeStyle = "rgb(18, 10, 8)";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    for (let x = 0; x <= canvas.width; x += 40) {
+        let soilWave = Math.sin(x * 0.005) * 3 + Math.cos(x * 0.01) * 2;
+        if(x === 0) ctx.moveTo(x, canvas.height - 80 + soilWave);
+        else ctx.lineTo(x, canvas.height - 80 + soilWave);
+    }
+    ctx.stroke();
+
+    ctx.fillStyle = COLORS.ASH;
+    for (let p of ashParticles) {
+        if (state === 1 || state === 0) {
+            p.x -= p.speed;
+            p.y += Math.sin(ticks * p.wobbleSpeed + p.seed) * p.wobbleRange * 0.15;
+        }
+        if (p.x < 0) {
+            p.x = canvas.width;
+            p.y = Math.random() * canvas.height;
+        }
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    let dImg = dinoImgs[level];
+    if (dImg && dImg.complete) {
+        ctx.save();
+        let size = level === 1 ? 390 : (level === 2 ? 340 : 290);
+        ctx.translate(dinoX + size / 2, dinoY + size / 2);
+        ctx.rotate(((jumpAngle % 360) * Math.PI) / 180);
+        ctx.drawImage(dImg, -size / 2, -size / 2, size, size);
+        ctx.restore();
+    }
+
+    for (let obs of obstacles) {
+        let oImg = obsImgs[obs.type];
+        if (oImg && oImg.complete) {
+            let yF = obs.type === 2 ? Math.sin(ticks * 0.003) * 12 : 0;
+            ctx.drawImage(oImg, obs.x, obs.y + yF, obs.w, obs.h);
+        }
+    }
+
+    drawVignette();
+}
+
 function updateAndRender() {
     let ticks = Date.now();
     if (clickCooldown > 0) clickCooldown--;
     
     ctx.save();
     
-    // Apply camera shake if active
     if (shakeTimer > 0) {
         let dx = (Math.random() - 0.5) * shakeIntensity;
         let dy = (Math.random() - 0.5) * shakeIntensity;
         ctx.translate(dx, dy);
         shakeTimer--;
     }
-
-    ctx.fillStyle = COLORS.SKY;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    let pulse = (Math.sin(ticks * 0.005) + 1) / 2;
-    let pulseCol = `rgb(${160 + 95 * pulse}, 10, 10)`;
 
     if (state === 1) {
         farLayer.update();
@@ -473,80 +525,12 @@ function updateAndRender() {
         }
     }
 
-    // Draw Blood Moon
-    ctx.save();
-    ctx.shadowBlur = 50;
-    ctx.shadowColor = "rgba(220, 20, 20, 0.6)";
-    ctx.fillStyle = "rgb(150, 20, 20)";
-    ctx.beginPath(); ctx.arc(canvas.width - 200, 220, 75, 0, Math.PI * 2); ctx.fill();
-    ctx.restore();
-    ctx.fillStyle = COLORS.SKY;
-    ctx.beginPath();
-    ctx.arc(canvas.width - 150, 200, 80, 0, Math.PI * 2); ctx.fill();
+    drawScene(ticks);
 
-    farLayer.draw();  
-    nearLayer.draw();
-
-    // UPGRADED: Dynamic Squirming Vine Floor mapping
-    ctx.fillStyle = "rgb(12, 4, 8)";
-    ctx.beginPath();
-    ctx.moveTo(0, canvas.height);
-    for (let x = 0; x <= canvas.width; x += 20) {
-        // Multi-layered sine wave to simulate shifting biological creep
-        let vineWave = Math.sin(x * 0.01 + ticks * 0.002) * 6 + Math.sin(x * 0.03 - ticks * 0.004) * 3;
-        ctx.lineTo(x, canvas.height - 80 + vineWave);
-    }
-    ctx.lineTo(canvas.width, canvas.height);
-    ctx.closePath();
-    ctx.fill();
-
-    // Red bio-luminescent vine edge line
-    ctx.strokeStyle = "rgba(242, 17, 17, 0.7)";
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    for (let x = 0; x <= canvas.width; x += 20) {
-        let vineWave = Math.sin(x * 0.01 + ticks * 0.002) * 6 + Math.sin(x * 0.03 - ticks * 0.004) * 3;
-        if(x === 0) ctx.moveTo(x, canvas.height - 80 + vineWave);
-        else ctx.lineTo(x, canvas.height - 80 + vineWave);
-    }
-    ctx.stroke();
-
-    ctx.fillStyle = COLORS.ASH;
-    for (let p of ashParticles) {
-        if (state === 1 || state === 0) {
-            p.x -= p.speed;
-            p.y += Math.sin(ticks * p.wobbleSpeed + p.seed) * p.wobbleRange * 0.15;
-        }
-        if (p.x < 0) {
-            p.x = canvas.width;
-            p.y = Math.random() * canvas.height;
-        }
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fill();
-    }
-
-    let dImg = dinoImgs[level];
-    if (dImg && dImg.complete) {
-        ctx.save();
-        let size = level === 1 ? 390 : (level === 2 ? 340 : 290);
-        ctx.translate(dinoX + size / 2, dinoY + size / 2);
-        ctx.rotate(((jumpAngle % 360) * Math.PI) / 180);
-        ctx.drawImage(dImg, -size / 2, -size / 2, size, size);
-        ctx.restore();
-    }
-
-    for (let obs of obstacles) {
-        let oImg = obsImgs[obs.type];
-        if (oImg && oImg.complete) {
-            let yF = obs.type === 2 ? Math.sin(ticks * 0.003) * 12 : 0;
-            ctx.drawImage(oImg, obs.x, obs.y + yF, obs.w, obs.h);
-        }
-    }
-
-    drawVignette();
-
+    let pulse = (Math.sin(ticks * 0.005) + 1) / 2;
+    let pulseCol = `rgb(${160 + 95 * pulse}, 10, 10)`;
     let uiColor = state === 1 ? COLORS.TEXT : COLORS.GLOW_GREY;
+    
     if (state === 1 && Math.floor(ticks / 600) % 2 === 0) {
         ctx.fillStyle = COLORS.REC_RED;
         ctx.beginPath(); ctx.arc(70, 36 + 22, 14, 0, Math.PI * 2); ctx.fill();
@@ -603,19 +587,12 @@ function updateAndRender() {
         drawNeonText(btnText, "96px 'Benguiat', 'Georgia', serif", pulseCol, canvas.width / 2, 810, 10, true);
     } 
     else if (state === 3) {
-        ctx.fillStyle = "rgba(22, 2, 5, 0.96)";
+        ctx.fillStyle = "rgba(18, 2, 4, 0.78)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
         drawNeonText("MISSION FAILED", "112px 'Benguiat', 'Georgia', serif", COLORS.TEXT, canvas.width / 2, 250, 12, true);
         drawNeonText("RETRY LEVEL", "46px 'Share Tech Mono', monospace", COLORS.WHITE, canvas.width / 2, 530, 10, true);
         drawNeonText("RESTART GAME", "46px 'Share Tech Mono', monospace", COLORS.WHITE, canvas.width / 2, 650, 10, true);
-    }
-
-    // Draw lightning hit flash overlays
-    if (flashTimer > 0) {
-        ctx.fillStyle = `rgba(255, 0, 0, ${flashTimer / 15})`;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        flashTimer--;
     }
 
     ctx.restore();
