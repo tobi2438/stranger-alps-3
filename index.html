@@ -65,7 +65,31 @@ let clickCooldown = 0;
 
 const dinoImgs = {};
 const obsImgs = {};
-const sfx = {};
+
+let audioCtx = null;
+const audioBuffers = {};
+const sfx = {
+    playlist: ["music1.ogg", "music2.ogg"],
+    currentTrack: 0,
+    musicElement: null
+};
+
+function initAudioContext() {
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
+}
+
+function playSFX(name) {
+    if (!audioCtx || !audioBuffers[name]) return;
+    const source = audioCtx.createBufferSource();
+    source.buffer = audioBuffers[name];
+    source.connect(audioCtx.destination);
+    source.start(0);
+}
 
 function initAssets() {
     const assetSources = {
@@ -83,21 +107,30 @@ function initAssets() {
         }
     }
 
-    sfx.jump = new Audio("jump.ogg");
-    sfx.hit = new Audio("obstaclehit.ogg");
-    sfx.playlist = [new Audio("music1.ogg"), new Audio("music2.ogg")];
-    sfx.currentTrack = 0;
-    sfx.playlist.forEach(track => {
-        track.loop = false;
-        track.addEventListener('ended', playNextTrack);
-    });
+    const sfxToLoad = { jump: "jump.ogg", hit: "obstaclehit.ogg" };
+    for (let key in sfxToLoad) {
+        fetch(sfxToLoad[key])
+            .then(response => response.arrayBuffer())
+            .then(buffer => {
+                const context = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+                return context.decodeAudioData(buffer);
+            })
+            .then(decodedBuffer => {
+                audioBuffers[key] = decodedBuffer;
+            })
+            .catch(() => {});
+    }
+
+    sfx.musicElement = new Audio(sfx.playlist[sfx.currentTrack]);
+    sfx.musicElement.addEventListener('ended', playNextTrack);
 }
 
 function playNextTrack() {
-    if (state !== 0) {
-        sfx.playlist[sfx.currentTrack].pause();
+    if (state !== 0 && sfx.musicElement) {
+        sfx.musicElement.pause();
         sfx.currentTrack = (sfx.currentTrack + 1) % sfx.playlist.length;
-        sfx.playlist[sfx.currentTrack].play().catch(() => {});
+        sfx.musicElement.src = sfx.playlist[sfx.currentTrack];
+        sfx.musicElement.play().catch(() => {});
     }
 }
 
@@ -229,15 +262,14 @@ function handleAction() {
 
     if (state === 0) {
         resetLevel(true);
-        sfx.playlist[sfx.currentTrack].play().catch(() => {});
+        if (sfx.musicElement) sfx.musicElement.play().catch(() => {});
         state = 1;
     } else if (state === 1) {
         if (!isJumping) {
+            initAudioContext();
             isJumping = true;
             dinoVelY = JUMP_STRENGTH;
-            // Fixed iOS playback bug by cloning the preloaded audio instance
-            const jumpSound = sfx.jump.cloneNode(true);
-            jumpSound.play().catch(() => {});
+            playSFX('jump');
         }
     } else if (state === 2) {
         if (level < 3) {
@@ -268,9 +300,15 @@ function handleMenuSelection(clientX, clientY) {
     }
 }
 
-window.addEventListener("keydown", (e) => { if (e.code === "Space") handleAction(); });
+window.addEventListener("keydown", (e) => { 
+    if (e.code === "Space") {
+        initAudioContext();
+        handleAction(); 
+    }
+});
 
 canvas.addEventListener("mousedown", (e) => {
+    initAudioContext();
     if (state === 3) {
         handleMenuSelection(e.clientX, e.clientY);
     } else {
@@ -280,6 +318,7 @@ canvas.addEventListener("mousedown", (e) => {
 
 canvas.addEventListener("touchstart", (e) => {
     e.preventDefault();
+    initAudioContext();
     if (state === 3) {
         const touch = e.touches[0];
         handleMenuSelection(touch.clientX, touch.clientY);
@@ -362,8 +401,8 @@ function updateAndRender() {
                 dinoHitbox.x + dinoHitbox.w > obsHitbox.x &&
                 dinoHitbox.y < obsHitbox.y + obsHitbox.h &&
                 dinoHitbox.y + dinoHitbox.h > obsHitbox.y) {
-                sfx.hit.currentTime = 0;
-                sfx.hit.play().catch(() => {});
+                initAudioContext();
+                playSFX('hit');
                 state = 3;
                 clickCooldown = 20;
             }
