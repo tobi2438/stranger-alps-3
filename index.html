@@ -529,7 +529,7 @@ function updateAndRender() {
     
     if (state === 1 && Math.floor(ticks / 600) % 2 === 0) {
         ctx.fillStyle = COLORS.REC_RED;
-        ctx.beginPath(); ctx.arc(70, 36 + 22, 14, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(70, 48, 14, 0, Math.PI * 2); ctx.fill();
     }
     
     drawNeonText("REC", "44px 'Share Tech Mono', monospace", uiColor, 110, 65);
@@ -597,34 +597,35 @@ function updateAndRender() {
                     (level === 1 ? ["Next: Leap over the Phoebe Bridgers ghost...", "or is it Eleven wearing a Halloween costume?", "Either way, jump!"] :
                                    ["You're almost at the finish line!", "Jump over the Demogorgons to close the gate!", ""]);
         
-        drawNeonText(title, "112px 'Benguiat', 'Georgia', serif", COLORS.TEXT, canvas.width / 2, 180, 20, true);
+        drawNeonText(title, "112px 'Benguiat', 'Georgia', serif", COLORS.TEXT, canvas.width / 2, 120, 20, true);
+        
         levelResults.forEach((res, i) => {
-            drawNeonText(res, "44px 'Share Tech Mono', monospace", "rgb(140, 120, 125)", canvas.width / 2, 300 + (i * 70), 8, true);
+            drawNeonText(res, "44px 'Share Tech Mono', monospace", "rgb(140, 120, 125)", canvas.width / 2 - 280, 200 + (i * 50), 8, false);
         });
+        
         instr.forEach((line, i) => {
-            drawNeonText(line, "44px 'Share Tech Mono', monospace", "rgb(200, 190, 195)", canvas.width / 2, 520 + (i * 70), 4, true);
+            drawNeonText(line, "44px 'Share Tech Mono', monospace", "rgb(200, 190, 195)", canvas.width / 2, 390 + (i * 45), 4, true);
         });
 
         if (level === 3) {
-            const positionsX = [canvas.width / 2 - 400, canvas.width / 2, canvas.width / 2 + 400];
+            const positionsX = [canvas.width / 2 - 420, canvas.width / 2, canvas.width / 2 + 420];
             [1, 2, 3].forEach((dinoId, idx) => {
                 let dImg = dinoImgs[dinoId];
                 if (dImg && dImg.complete) {
                     ctx.save();
                     ctx.shadowColor = "rgba(242, 17, 17, 0.7)";
                     ctx.shadowBlur = 25;
-                    ctx.translate(positionsX[idx], 470);
+                    ctx.translate(positionsX[idx], 640);
                     
                     if (idx === 0) {
-                        ctx.translate(0, Math.sin(ticks * 0.01) * 25);
-                        ctx.rotate(ticks * 0.007);
+                        ctx.translate(Math.sin(ticks * 0.003) * 20, Math.cos(ticks * 0.004) * 15);
                     } else if (idx === 1) {
-                        ctx.rotate(-ticks * 0.011);
-                        let sf = 1 + Math.sin(ticks * 0.014) * 0.18;
-                        ctx.scale(sf, sf);
+                        ctx.translate(0, Math.sin(ticks * 0.005) * 20);
+                        let sfX = 1 + Math.sin(ticks * 0.005) * 0.06;
+                        let sfY = 1 - Math.sin(ticks * 0.005) * 0.06;
+                        ctx.scale(sfX, sfY);
                     } else if (idx === 2) {
-                        ctx.translate(Math.sin(ticks * 0.009) * 45, Math.cos(ticks * 0.013) * 25);
-                        ctx.rotate(Math.sin(ticks * 0.015) * 0.85);
+                        ctx.translate(Math.sin(ticks * 0.004) * 25, Math.cos(ticks * 0.003) * 20);
                     }
                     
                     ctx.drawImage(dImg, -125, -125, 250, 250);
@@ -634,7 +635,7 @@ function updateAndRender() {
         }
 
         let btnText = level === 3 ? "RESTART" : "CONTINUE";
-        drawNeonText(btnText, "96px 'Benguiat', 'Georgia', serif", pulseCol, canvas.width / 2, 810, 10, true);
+        drawNeonText(btnText, "96px 'Benguiat', 'Georgia', serif", pulseCol, canvas.width / 2, 840, 10, true);
     } 
     else if (state === 3) {
         ctx.fillStyle = "rgba(18, 2, 4, 0.78)";
