@@ -600,7 +600,13 @@ function updateAndRender() {
         drawNeonText(title, "112px 'Benguiat', 'Georgia', serif", COLORS.TEXT, canvas.width / 2, 120, 20, true);
         
         levelResults.forEach((res, i) => {
-            drawNeonText(res, "44px 'Share Tech Mono', monospace", "rgb(140, 120, 125)", canvas.width / 2 - 280, 200 + (i * 50), 8, false);
+            ctx.font = "44px 'Share Tech Mono', monospace";
+            let lineW = 0;
+            for(let char of res) {
+                lineW += ctx.measureText(char).width + 8;
+            }
+            lineW -= 8;
+            drawNeonText(res, "44px 'Share Tech Mono', monospace", "rgb(140, 120, 125)", canvas.width / 2 - lineW / 2, 200 + (i * 50), 8, false);
         });
         
         instr.forEach((line, i) => {
@@ -617,12 +623,15 @@ function updateAndRender() {
                     ctx.shadowBlur = 25;
                     ctx.translate(positionsX[idx], 600);
                     
-                    ctx.translate(0, Math.sin(ticks * 0.005) * 20);
-                    let sfX = 1 + Math.sin(ticks * 0.005) * 0.06;
-                    let sfY = 1 - Math.sin(ticks * 0.005) * 0.06;
+                    ctx.translate(0, Math.sin(ticks * 0.007) * 20);
+                    let sfX = 1 + Math.sin(ticks * 0.007) * 0.06;
+                    let sfY = 1 - Math.sin(ticks * 0.007) * 0.06;
                     ctx.scale(sfX, sfY);
                     
-                    ctx.drawImage(dImg, -125, -125, 250, 250);
+                    ctx.rotate(Math.sin(ticks * 0.007) * 0.08);
+                    
+                    let baseSize = (idx === 0 || idx === 1) ? 275 : 250;
+                    ctx.drawImage(dImg, -baseSize / 2, -baseSize / 2, baseSize, baseSize);
                     ctx.restore();
                 }
             });
