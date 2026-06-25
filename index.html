@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Stranger Alps</title>
     <style>
         body {
@@ -15,6 +15,9 @@
             height: 100vh;
             overflow: hidden;
             font-family: monospace;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
         }
         canvas {
             background-color: rgb(5, 5, 20);
@@ -121,7 +124,8 @@ function initAssets() {
             .catch(() => {});
     }
 
-    sfx.musicElement = new Audio(sfx.playlist[sfx.currentTrack]);
+    sfx.musicElement = new Audio();
+    sfx.musicElement.src = sfx.playlist[sfx.currentTrack];
     sfx.musicElement.addEventListener('ended', playNextTrack);
 }
 
@@ -266,7 +270,6 @@ function handleAction() {
         state = 1;
     } else if (state === 1) {
         if (!isJumping) {
-            initAudioContext();
             isJumping = true;
             dinoVelY = JUMP_STRENGTH;
             playSFX('jump');
@@ -308,7 +311,13 @@ window.addEventListener("keydown", (e) => {
 });
 
 canvas.addEventListener("mousedown", (e) => {
-    initAudioContext();
+    if (state === 0 && sfx.musicElement) {
+        initAudioContext();
+        sfx.musicElement.play().catch(() => {});
+    } else {
+        initAudioContext();
+    }
+    
     if (state === 3) {
         handleMenuSelection(e.clientX, e.clientY);
     } else {
@@ -318,7 +327,13 @@ canvas.addEventListener("mousedown", (e) => {
 
 canvas.addEventListener("touchstart", (e) => {
     e.preventDefault();
-    initAudioContext();
+    if (state === 0 && sfx.musicElement) {
+        initAudioContext();
+        sfx.musicElement.play().catch(() => {});
+    } else {
+        initAudioContext();
+    }
+
     if (state === 3) {
         const touch = e.touches[0];
         handleMenuSelection(touch.clientX, touch.clientY);
@@ -401,7 +416,6 @@ function updateAndRender() {
                 dinoHitbox.x + dinoHitbox.w > obsHitbox.x &&
                 dinoHitbox.y < obsHitbox.y + obsHitbox.h &&
                 dinoHitbox.y + dinoHitbox.h > obsHitbox.y) {
-                initAudioContext();
                 playSFX('hit');
                 state = 3;
                 clickCooldown = 20;
