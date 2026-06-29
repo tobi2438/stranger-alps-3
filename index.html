@@ -88,8 +88,8 @@ const sfx = {
 };
 
 let lastTime = performance.now();
-let accumulator = 0;
-const deltaTime = 1000 / 60;
+let smoothDt = 1;
+let animTicks = 0;
 
 function initAudioContext() {
     if (audioCtx && audioCtx.state === 'suspended') {
@@ -190,8 +190,8 @@ class MountainLayer {
         this.totalWidth = currX;
     }
 
-    update() {
-        let totalSpeed = this.speed * (1.2 + level * 0.2) * 2;
+    update(dt) {
+        let totalSpeed = this.speed * (1.2 + level * 0.2) * 2 * dt;
         this.offset -= totalSpeed;
         if (this.offset <= -this.totalWidth) this.offset += this.totalWidth;
     }
@@ -310,9 +310,8 @@ function triggerHit() {
 
 function downloadScreenshot() {
     try {
-        let ticks = Date.now();
         isExportingScreenshot = true;
-        drawScene(ticks);
+        drawScene(animTicks);
         isExportingScreenshot = false;
         
         ctx.fillStyle = "rgba(1, 0, 0, 0.88)";
@@ -545,13 +544,21 @@ function drawScene(ticks) {
     drawVignette();
 }
 
-function updateGame() {
-    if (clickCooldown > 0) clickCooldown--;
-    if (shakeTimer > 0) shakeTimer--;
+function updateAndRender() {
+    let now = performance.now();
+    let dt = (now - lastTime) / (1000 / 60);
+    lastTime = now;
+    
+    if (dt > 3) dt = 1;
+    smoothDt = smoothDt * 0.85 + dt * 0.15;
+    animTicks += smoothDt * 16.666;
+
+    if (clickCooldown > 0) clickCooldown -= smoothDt;
+    if (shakeTimer > 0) shakeTimer -= smoothDt;
 
     for (let p of ashParticles) {
         if (state === 1 || state === 0 || state === 3 || state === 2) {
-            p.x -= p.speed;
+            p.x -= p.speed * smoothDt;
         }
         if (p.x < 0) {
             p.x = canvas.width;
@@ -560,12 +567,12 @@ function updateGame() {
     }
 
     if (state === 1) {
-        farLayer.update();
-        nearLayer.update();
+        farLayer.update(smoothDt);
+        nearLayer.update(smoothDt);
         
-        dinoVelY += GRAVITY;
-        dinoY += dinoVelY;
-        if (isJumping) jumpAngle -= 11;
+        dinoVelY += GRAVITY * smoothDt;
+        dinoY += dinoVelY * smoothDt;
+        if (isJumping) jumpAngle -= 11 * smoothDt;
         if (dinoY >= GROUND_Y) {
             dinoY = GROUND_Y;
             isJumping = false;
@@ -573,7 +580,7 @@ function updateGame() {
         }
 
         if (!finishingLevel) {
-            spawnTimer++;
+            spawnTimer += smoothDt;
             if (spawnTimer > nextSpawnThreshold) {
                 let obsSize = level === 1 ? 280 : (level === 2 ? 350 : 330);
                 let obsY = level === 1 ? (900 - 80 - obsSize + 30) : (level === 2 ? (900 - 80 - obsSize + 20) : (900 - 80 - obsSize + 20));
@@ -604,7 +611,7 @@ function updateGame() {
         for (let i = obstacles.length - 1; i >= 0; i--) {
             let obs = obstacles[i];
             let speedMod = level === 1 ? 14.4 : (level === 2 ? 16.5 : 19.8);
-            obs.x -= speedMod;
+            obs.x -= speedMod * smoothDt;
             
             let hitWidth = isJumping ? 65 : 135;
             let hitHeight = isJumping ? 65 : 185;
@@ -631,21 +638,7 @@ function updateGame() {
             if (obs.x < -400) obstacles.splice(i, 1);
         }
     }
-}
 
-function updateAndRender() {
-    let now = performance.now();
-    let elapsed = now - lastTime;
-    if (elapsed > 1000) elapsed = deltaTime;
-    lastTime = now;
-    accumulator += elapsed;
-
-    while (accumulator >= deltaTime) {
-        updateGame();
-        accumulator -= deltaTime;
-    }
-
-    let ticks = Date.now();
     ctx.save();
     
     if (shakeTimer > 0) {
@@ -654,14 +647,14 @@ function updateAndRender() {
         ctx.translate(dx, dy);
     }
 
-    drawScene(ticks);
+    drawScene(animTicks);
 
-    let pulse = (Math.sin(ticks * 0.005) + 1) / 2;
+    let pulse = (Math.sin(animTicks * 0.005) + 1) / 2;
     let pulseCol = `rgb(${160 + 95 * pulse}, 10, 10)`;
     let uiColor = state === 1 ? COLORS.TEXT : COLORS.GLOW_GREY;
     
     if (state !== 2) {
-        if (state === 1 && Math.floor(ticks / 600) % 2 === 0) {
+        if (state === 1 && Math.floor(animTicks / 600) % 2 === 0) {
             ctx.fillStyle = COLORS.REC_RED;
             ctx.beginPath(); ctx.arc(70, 48, 14, 0, Math.PI * 2); ctx.fill();
         }
@@ -760,12 +753,12 @@ function updateAndRender() {
                     ctx.shadowBlur = 25;
                     ctx.translate(positionsX[idx], positionsY[idx]);
                     
-                    ctx.translate(0, Math.sin(ticks * 0.007) * 20);
-                    let sfX = 1 + Math.sin(ticks * 0.007) * 0.06;
-                    let sfY = 1 - Math.sin(ticks * 0.007) * 0.06;
+                    ctx.translate(0, Math.sin(animTicks * 0.007) * 20);
+                    let sfX = 1 + Math.sin(animTicks * 0.007) * 0.06;
+                    let sfY = 1 - Math.sin(animTicks * 0.007) * 0.06;
                     ctx.scale(sfX, sfY);
                     
-                    ctx.rotate(Math.sin(ticks * 0.007) * 0.08);
+                    ctx.rotate(Math.sin(animTicks * 0.007) * 0.08);
                     
                     let baseSize = 275;
                     if (idx === 0) baseSize = 340;
