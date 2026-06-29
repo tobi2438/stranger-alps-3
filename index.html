@@ -89,6 +89,8 @@ const sfx = {
 
 let lastTime = performance.now();
 let animTicks = 0;
+let accumulator = 0;
+const FIXED_DT = 1;
 
 function initAudioContext() {
     if (audioCtx && audioCtx.state === 'suspended') {
@@ -478,7 +480,7 @@ canvas.addEventListener("touchstart", (e) => {
     } else {
         handleAction();
     }
-});
+}, { passive: false });
 
 function drawScene(ticks) {
     ctx.fillStyle = COLORS.SKY;
@@ -544,12 +546,7 @@ function drawScene(ticks) {
     drawVignette();
 }
 
-function updateAndRender() {
-    let now = performance.now();
-    let dt = (now - lastTime) / (1000 / 60);
-    lastTime = now;
-    
-    if (dt > 3) dt = 1;
+function gameUpdate(dt) {
     animTicks += dt * 16.666;
 
     if (clickCooldown > 0) clickCooldown -= dt;
@@ -636,6 +633,20 @@ function updateAndRender() {
 
             if (obs.x < -400) obstacles.splice(i, 1);
         }
+    }
+}
+
+function updateAndRender() {
+    let now = performance.now();
+    let frameTime = (now - lastTime) / (1000 / 60);
+    lastTime = now;
+    
+    if (frameTime > 4) frameTime = 4;
+    
+    accumulator += frameTime;
+    while (accumulator >= FIXED_DT) {
+        gameUpdate(FIXED_DT);
+        accumulator -= FIXED_DT;
     }
 
     ctx.save();
