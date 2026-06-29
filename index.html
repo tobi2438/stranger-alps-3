@@ -87,6 +87,10 @@ const sfx = {
     musicElement: null
 };
 
+let lastTime = performance.now();
+let accumulator = 0;
+const deltaTime = 1000 / 60;
+
 function initAudioContext() {
     if (audioCtx && audioCtx.state === 'suspended') {
         audioCtx.resume();
@@ -513,13 +517,6 @@ function drawScene(ticks) {
 
     ctx.fillStyle = COLORS.ASH;
     for (let p of ashParticles) {
-        if (state === 1 || state === 0 || state === 3 || state === 2) {
-            p.x -= p.speed;
-        }
-        if (p.x < 0) {
-            p.x = canvas.width;
-            p.y = Math.random() * canvas.height;
-        }
         ctx.beginPath();
         ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
         ctx.fill();
@@ -548,17 +545,18 @@ function drawScene(ticks) {
     drawVignette();
 }
 
-function updateAndRender() {
-    let ticks = Date.now();
+function updateGame() {
     if (clickCooldown > 0) clickCooldown--;
-    
-    ctx.save();
-    
-    if (shakeTimer > 0) {
-        let dx = (Math.random() - 0.5) * shakeIntensity;
-        let dy = (Math.random() - 0.5) * shakeIntensity;
-        ctx.translate(dx, dy);
-        shakeTimer--;
+    if (shakeTimer > 0) shakeTimer--;
+
+    for (let p of ashParticles) {
+        if (state === 1 || state === 0 || state === 3 || state === 2) {
+            p.x -= p.speed;
+        }
+        if (p.x < 0) {
+            p.x = canvas.width;
+            p.y = Math.random() * canvas.height;
+        }
     }
 
     if (state === 1) {
@@ -615,7 +613,6 @@ function updateAndRender() {
             let dinoHitbox = { x: dinoX + hitOffsetX, y: dinoY + hitOffsetY, w: hitWidth, h: hitHeight };
             let infY = level === 3 ? -20 : -75;
             
-            
             let hMod = level === 1 ? 0.56 : (level === 2 ? 0.45 : 0.50);
             let obsHitbox = {
                 x: obs.x + (obs.w * ((1 - hMod) / 2)), 
@@ -633,6 +630,28 @@ function updateAndRender() {
 
             if (obs.x < -400) obstacles.splice(i, 1);
         }
+    }
+}
+
+function updateAndRender() {
+    let now = performance.now();
+    let elapsed = now - lastTime;
+    if (elapsed > 1000) elapsed = deltaTime;
+    lastTime = now;
+    accumulator += elapsed;
+
+    while (accumulator >= deltaTime) {
+        updateGame();
+        accumulator -= deltaTime;
+    }
+
+    let ticks = Date.now();
+    ctx.save();
+    
+    if (shakeTimer > 0) {
+        let dx = (Math.random() - 0.5) * shakeIntensity;
+        let dy = (Math.random() - 0.5) * shakeIntensity;
+        ctx.translate(dx, dy);
     }
 
     drawScene(ticks);
