@@ -75,8 +75,6 @@ let clickCooldown = 0;
 let shakeTimer = 0;
 let shakeIntensity = 0;
 let isExportingScreenshot = false;
-let lastTime = performance.now();
-let musicStarted = false;
 
 const dinoImgs = {};
 const obsImgs = {};
@@ -140,7 +138,7 @@ function initAssets() {
 }
 
 function playNextTrack() {
-    if (musicStarted && sfx.musicElement) {
+    if (state !== 0 && sfx.musicElement) {
         sfx.musicElement.pause();
         sfx.currentTrack = (sfx.currentTrack + 1) % sfx.playlist.length;
         sfx.musicElement.src = sfx.playlist[sfx.currentTrack];
@@ -188,9 +186,9 @@ class MountainLayer {
         this.totalWidth = currX;
     }
 
-    update(dt) {
+    update() {
         let totalSpeed = this.speed * (1.2 + level * 0.2) * 2;
-        this.offset -= totalSpeed * dt;
+        this.offset -= totalSpeed;
         if (this.offset <= -this.totalWidth) this.offset += this.totalWidth;
     }
 
@@ -231,31 +229,35 @@ function formatTime(ms) {
 function drawNeonText(text, fontStr, color, x, y, spacing = 6, center = false) {
     let cleanFontStr = fontStr.replace(/'Benguiat',/g, '');
     ctx.font = cleanFontStr;
+    let isStrangerTitle = fontStr.includes("Georgia") || fontStr.includes("serif");
+    
+    let totalW = 0;
+    for(let char of text) {
+        totalW += ctx.measureText(char).width + spacing;
+    }
+    totalW -= spacing;
+
+    let currX = center ? x - (totalW / 2) : x;
+    
     ctx.save();
-    if (fontStr.includes("Georgia") || fontStr.includes("serif")) {
+    if (isStrangerTitle) {
         ctx.shadowColor = "rgba(255, 0, 0, 0.9)";
         ctx.shadowBlur = 20;
-        let totalW = 0;
-        for(let char of text) { totalW += ctx.measureText(char).width + spacing; }
-        totalW -= spacing;
-        let currX = center ? x - (totalW / 2) : x;
-        for (let char of text) {
-            ctx.fillStyle = color;
-            ctx.fillText(char, currX, y);
-            ctx.fillStyle = "rgba(255, 255, 255, 0.15)";
-            ctx.fillText(char, currX, y - 2);
-            currX += ctx.measureText(char).width + spacing;
-        }
     } else {
         ctx.shadowColor = "rgba(255, 0, 0, 0.5)";
         ctx.shadowBlur = 8;
+    }
+
+    for (let char of text) {
         ctx.fillStyle = color;
-        if (center) {
-            ctx.textAlign = "center";
-        } else {
-            ctx.textAlign = "left";
+        ctx.fillText(char, currX, y);
+        
+        if (isStrangerTitle) {
+            ctx.fillStyle = "rgba(255, 255, 255, 0.15)";
+            ctx.fillText(char, currX, y - 2);
         }
-        ctx.fillText(text, x, y);
+        
+        currX += ctx.measureText(char).width + spacing;
     }
     ctx.restore();
 }
@@ -377,15 +379,14 @@ function downloadScreenshot() {
             }
         });
 
-        canvas.toBlob(function(blob) {
+        canvas.toBlob((blob) => {
             if (!blob) return;
             const url = URL.createObjectURL(blob);
             const link = document.createElement("a");
             link.download = "stranger-alps-results.png";
             link.href = url;
-            document.body.appendChild(link);
             link.click();
-            document.body.removeChild(link);
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
         }, "image/png");
     } catch (e) {
         console.error(e);
@@ -398,10 +399,7 @@ function handleAction() {
 
     if (state === 0) {
         resetLevel(true);
-        if (!musicStarted) {
-            musicStarted = true;
-            if (sfx.musicElement) sfx.musicElement.play().catch(() => {});
-        }
+        if (sfx.musicElement) sfx.musicElement.play().catch(() => {});
         state = 1;
     } else if (state === 1) {
         if (!isJumping) {
@@ -421,11 +419,11 @@ function handleMenuSelection(clientX, clientY) {
     const mouseY = (clientY - rect.top) * scaleY;
 
     if (state === 3) {
-        if (mouseY > 480 && mouseY < 560 && mouseX > 600 && mouseX < 1000) {
+        if (mouseY > 480 && mouseY < 560) {
             currentLevelTries++;
             resetLevel(false);
             state = 1;
-        } else if (mouseY > 600 && mouseY < 680 && mouseX > 550 && mouseX < 1050) {
+        } else if (mouseY > 600 && mouseY < 680) {
             resetLevel(true);
             state = 0;
         }
@@ -441,7 +439,7 @@ function handleMenuSelection(clientX, clientY) {
                 state = 0;
             }
         } else {
-            if (mouseY > 760 && mouseY < 880 && mouseX > 600 && mouseX < 1000) {
+            if (mouseY > 760 && mouseY < 880) {
                 level++;
                 currentLevelTries = 1;
                 resetLevel(false);
@@ -515,6 +513,13 @@ function drawScene(ticks) {
 
     ctx.fillStyle = COLORS.ASH;
     for (let p of ashParticles) {
+        if (state === 1 || state === 0 || state === 3 || state === 2) {
+            p.x -= p.speed;
+        }
+        if (p.x < 0) {
+            p.x = canvas.width;
+            p.y = Math.random() * canvas.height;
+        }
         ctx.beginPath();
         ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
         ctx.fill();
@@ -544,13 +549,8 @@ function drawScene(ticks) {
 }
 
 function updateAndRender() {
-    let now = performance.now();
-    let dt = (now - lastTime) / (1000 / 60);
-    if (dt > 4) dt = 4;
-    lastTime = now;
-
     let ticks = Date.now();
-    if (clickCooldown > 0) clickCooldown -= dt;
+    if (clickCooldown > 0) clickCooldown--;
     
     ctx.save();
     
@@ -558,26 +558,16 @@ function updateAndRender() {
         let dx = (Math.random() - 0.5) * shakeIntensity;
         let dy = (Math.random() - 0.5) * shakeIntensity;
         ctx.translate(dx, dy);
-        shakeTimer -= dt;
-    }
-
-    for (let p of ashParticles) {
-        if (state === 1 || state === 0 || state === 3 || state === 2) {
-            p.x -= p.speed * dt;
-        }
-        if (p.x < 0) {
-            p.x = canvas.width;
-            p.y = Math.random() * canvas.height;
-        }
+        shakeTimer--;
     }
 
     if (state === 1) {
-        farLayer.update(dt);
-        nearLayer.update(dt);
+        farLayer.update();
+        nearLayer.update();
         
-        dinoVelY += GRAVITY * dt;
-        dinoY += dinoVelY * dt;
-        if (isJumping) jumpAngle -= 11 * dt;
+        dinoVelY += GRAVITY;
+        dinoY += dinoVelY;
+        if (isJumping) jumpAngle -= 11;
         if (dinoY >= GROUND_Y) {
             dinoY = GROUND_Y;
             isJumping = false;
@@ -585,7 +575,7 @@ function updateAndRender() {
         }
 
         if (!finishingLevel) {
-            spawnTimer += dt;
+            spawnTimer++;
             if (spawnTimer > nextSpawnThreshold) {
                 let obsSize = level === 1 ? 280 : (level === 2 ? 350 : 330);
                 let obsY = level === 1 ? (900 - 80 - obsSize + 30) : (level === 2 ? (900 - 80 - obsSize + 20) : (900 - 80 - obsSize + 20));
@@ -616,14 +606,15 @@ function updateAndRender() {
         for (let i = obstacles.length - 1; i >= 0; i--) {
             let obs = obstacles[i];
             let speedMod = level === 1 ? 14.4 : (level === 2 ? 16.5 : 19.8);
-            obs.x -= speedMod * dt;
+            obs.x -= speedMod;
             
-            let hitWidth = isJumping ? 70 : 150;
-            let hitHeight = isJumping ? 70 : 208;
-            let hitOffsetX = isJumping ? 140 : 95;
-            let hitOffsetY = isJumping ? 165 : 76;
+            let hitWidth = isJumping ? 65 : 135;
+            let hitHeight = isJumping ? 65 : 185;
+            let hitOffsetX = isJumping ? 140 : 105;
+            let hitOffsetY = isJumping ? 165 : 85;
             let dinoHitbox = { x: dinoX + hitOffsetX, y: dinoY + hitOffsetY, w: hitWidth, h: hitHeight };
             let infY = level === 3 ? -20 : -75;
+            
             
             let hMod = level === 1 ? 0.56 : (level === 2 ? 0.45 : 0.50);
             let obsHitbox = {
