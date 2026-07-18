@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Stranger Alps</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
@@ -17,6 +17,8 @@
             height: 100dvh;
             overflow: hidden;
             font-family: 'Share Tech Mono', monospace;
+            touch-action: none;
+            -webkit-text-size-adjust: 100%;
         }
         canvas {
             background-color: rgb(3, 2, 8);
@@ -54,8 +56,9 @@ const COLORS = {
     TEXT: "rgb(242, 17, 17)",
     WHITE: "rgb(255, 255, 255)",
     GLOW_GREY: "rgb(210, 200, 202)",
-    ASH: "rgb(180, 180, 200)", 
-    REC_RED: "rgb(255, 0, 0)"
+    ASH: "rgba(180, 180, 200, 0.6)", 
+    REC_RED: "rgb(255, 0, 0)",
+    TRAIL: "rgba(242, 17, 17, 0.25)"
 };
 
 let state = 0; 
@@ -75,6 +78,9 @@ let clickCooldown = 0;
 let shakeTimer = 0;
 let shakeIntensity = 0;
 let isExportingScreenshot = false;
+
+let dinoTrail = [];
+let landParticles = [];
 
 const dinoImgs = {};
 const obsImgs = {};
@@ -110,8 +116,16 @@ function initAudioContext() {
     }
 }
 
-function playSFX(name) {
+const unlockAudio = () => {
     initAudioContext();
+    if (sfx.musicElement && state !== 0) sfx.musicElement.play().catch(() => {});
+    window.removeEventListener('click', unlockAudio);
+    window.removeEventListener('touchstart', unlockAudio);
+};
+window.addEventListener('click', unlockAudio, { passive: true });
+window.addEventListener('touchstart', unlockAudio, { passive: true });
+
+function playSFX(name) {
     if (!audioCtx || !audioBuffers[name]) return;
     const source = audioCtx.createBufferSource();
     source.buffer = audioBuffers[name];
@@ -160,11 +174,13 @@ function playNextTrack() {
 }
 
 const ashParticles = [];
-for (let i = 0; i < 40; i++) {
+for (let i = 0; i < 45; i++) {
     ashParticles.push({
         x: Math.random() * canvas.width,
         y: Math.random() * canvas.height,
-        speed: 1.0 + Math.random() * 3.0
+        size: 1.5 + Math.random() * 3.5,
+        speed: 0.8 + Math.random() * 2.5,
+        opacity: 0.3 + Math.random() * 0.6
     });
 }
 
@@ -253,12 +269,23 @@ function drawNeonText(text, fontStr, color, x, y, spacing = 6, center = false) {
     let currX = center ? x - (totalW / 2) : x;
     
     ctx.save();
-    if (isStrangerTitle) {
-        ctx.shadowColor = "rgba(255, 0, 0, 0.9)";
-        ctx.shadowBlur = 20;
+    
+    if (state === 1 && !isExportingScreenshot) {
+        let baseCurrX = currX;
+        
+        for (let char of text) {
+            ctx.fillStyle = "rgba(255, 0, 0, 0.8)";
+            ctx.fillText(char, baseCurrX + 2, y + 2);
+            baseCurrX += ctx.measureText(char).width + spacing;
+        }
     } else {
-        ctx.shadowColor = "rgba(255, 0, 0, 0.5)";
-        ctx.shadowBlur = 8;
+        if (isStrangerTitle) {
+            ctx.shadowColor = "rgba(255, 0, 0, 0.9)";
+            ctx.shadowBlur = 20;
+        } else {
+            ctx.shadowColor = "rgba(255, 0, 0, 0.5)";
+            ctx.shadowBlur = 8;
+        }
     }
 
     for (let char of text) {
@@ -299,6 +326,8 @@ function resetLevel(fullReset = false) {
     obstacles = [];
     spawnTimer = 0;
     finishingLevel = false;
+    dinoTrail = [];
+    landParticles = [];
     
     let minSpawn = level === 1 ? 45 : (level === 2 ? 65 : 55);
     let maxSpawn = level === 1 ? 140 : (level === 2 ? 160 : 145);
@@ -309,12 +338,24 @@ function resetLevel(fullReset = false) {
 }
 
 function triggerHit() {
-    initAudioContext();
     playSFX('hit');
     shakeTimer = 12;
     shakeIntensity = 6;
     state = 3;
     clickCooldown = 25;
+}
+
+function createLandingPuff(x, y) {
+    for (let i = 0; i < 12; i++) {
+        landParticles.push({
+            x: x + 150 + (Math.random() - 0.5) * 80,
+            y: y + 300,
+            vx: (Math.random() - 0.5) * 8,
+            vy: -Math.random() * 4 - 2,
+            alpha: 1.0,
+            radius: Math.random() * 5 + 3
+        });
+    }
 }
 
 function downloadScreenshot() {
@@ -475,13 +516,11 @@ function handleMenuSelection(clientX, clientY) {
 window.addEventListener("keydown", (e) => { 
     if (e.repeat) return;
     if (e.code === "Space") {
-        initAudioContext();
         handleAction(); 
     }
 });
 
 canvas.addEventListener("mousedown", (e) => {
-    initAudioContext();
     if (state === 3 || state === 2) {
         handleMenuSelection(e.clientX, e.clientY);
     } else {
@@ -491,14 +530,13 @@ canvas.addEventListener("mousedown", (e) => {
 
 canvas.addEventListener("touchstart", (e) => {
     e.preventDefault();
-    initAudioContext();
     const touch = e.touches[0];
     if (state === 3 || state === 2) {
         handleMenuSelection(touch.clientX, touch.clientY);
     } else {
         handleAction();
     }
-});
+}, { passive: false });
 
 function drawScene(ticks) {
     ctx.fillStyle = COLORS.SKY;
@@ -534,18 +572,43 @@ function drawScene(ticks) {
     }
     ctx.stroke();
 
-    ctx.fillStyle = COLORS.ASH;
+    
     for (let p of ashParticles) {
+        ctx.fillStyle = `rgba(180, 180, 200, ${p.opacity})`;
         ctx.beginPath();
-        ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    
+    for (let p of landParticles) {
+        ctx.fillStyle = `rgba(242, 17, 17, ${p.alpha})`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
         ctx.fill();
     }
 
     if (!isExportingScreenshot && state !== 2) {
         let dImg = dinoImgs[level];
+        let size = level === 1 ? 390 : (level === 2 ? 340 : 290);
+
+        
+        if (state === 1) {
+            for (let i = 0; i < dinoTrail.length; i++) {
+                let pt = dinoTrail[i];
+                ctx.save();
+                ctx.globalAlpha = pt.alpha;
+                ctx.translate(pt.x + size / 2, pt.y + size / 2);
+                ctx.rotate((pt.angle * Math.PI) / 180);
+                if (dImg && dImg.complete) {
+                    ctx.drawImage(dImg, -size / 2, -size / 2, size, size);
+                }
+                ctx.restore();
+            }
+        }
+
         if (dImg && dImg.complete) {
             ctx.save();
-            let size = level === 1 ? 390 : (level === 2 ? 340 : 290);
             ctx.translate(dinoX + size / 2, dinoY + size / 2);
             ctx.rotate(((jumpAngle % 360) * Math.PI) / 180);
             ctx.drawImage(dImg, -size / 2, -size / 2, size, size);
@@ -577,23 +640,39 @@ function updateAndRender() {
     if (shakeTimer > 0) shakeTimer -= smoothDt;
 
     for (let p of ashParticles) {
-        if (state === 1 || state === 0 || state === 3 || state === 2) {
-            p.x -= p.speed * smoothDt;
-        }
+        p.x -= p.speed * smoothDt;
         if (p.x < 0) {
             p.x = canvas.width;
             p.y = Math.random() * canvas.height;
         }
     }
 
+    
+    for (let i = landParticles.length - 1; i >= 0; i--) {
+        let p = landParticles[i];
+        p.x += p.vx * smoothDt;
+        p.y += p.vy * smoothDt;
+        p.alpha -= 0.04 * smoothDt;
+        if (p.alpha <= 0) landParticles.splice(i, 1);
+    }
+
     if (state === 1) {
         farLayer.update(smoothDt);
         nearLayer.update(smoothDt);
         
+        
+        dinoTrail.push({x: dinoX, y: dinoY, angle: jumpAngle, alpha: 0.45});
+        if (dinoTrail.length > 5) dinoTrail.shift();
+        for(let pt of dinoTrail) { pt.alpha -= 0.08 * smoothDt; }
+
         dinoVelY += GRAVITY * smoothDt;
         dinoY += dinoVelY * smoothDt;
         if (isJumping) jumpAngle -= 11 * smoothDt;
+        
         if (dinoY >= GROUND_Y) {
+            if (isJumping) {
+                createLandingPuff(dinoX, GROUND_Y);
+            }
             dinoY = GROUND_Y;
             isJumping = false;
             jumpAngle = 0;
