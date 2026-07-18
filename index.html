@@ -56,9 +56,9 @@ const COLORS = {
     TEXT: "rgb(242, 17, 17)",
     WHITE: "rgb(255, 255, 255)",
     GLOW_GREY: "rgb(210, 200, 202)",
-    ASH: "rgba(180, 180, 200, 0.6)", 
+    ASH: "rgba(180, 180, 200, 0.4)", 
     REC_RED: "rgb(255, 0, 0)",
-    TRAIL: "rgba(242, 17, 17, 0.25)"
+    TRAIL: "rgba(242, 17, 17, 0.15)"
 };
 
 let state = 0; 
@@ -173,13 +173,13 @@ function playNextTrack() {
 }
 
 const ashParticles = [];
-for (let i = 0; i < 45; i++) {
+for (let i = 0; i < 20; i++) {
     ashParticles.push({
         x: Math.random() * canvas.width,
         y: Math.random() * canvas.height,
-        size: 1.5 + Math.random() * 3.5,
+        size: 1.0 + Math.random() * 1.5,
         speed: 0.8 + Math.random() * 2.5,
-        opacity: 0.3 + Math.random() * 0.6
+        opacity: 0.15 + Math.random() * 0.25
     });
 }
 
@@ -625,13 +625,13 @@ function updateAndRender() {
         farLayer.update(smoothDt);
         nearLayer.update(smoothDt);
         
-        dinoTrail.push({x: dinoX, y: dinoY, angle: jumpAngle, alpha: 0.45});
-        if (dinoTrail.length > 5) dinoTrail.shift();
-        for(let pt of dinoTrail) { pt.alpha -= 0.08 * smoothDt; }
+        dinoTrail.push({x: dinoX, y: dinoY, angle: jumpAngle, alpha: 0.15});
+        if (dinoTrail.length > 2) dinoTrail.shift();
+        for(let pt of dinoTrail) { pt.alpha -= 0.05 * smoothDt; }
 
         dinoVelY += GRAVITY * smoothDt;
         dinoY += dinoVelY * smoothDt;
-        if (isJumping) jumpAngle -= 11 * smoothDt;
+        if (isJumping) jumpAngle -= 5.5 * smoothDt;
         
         if (dinoY >= GROUND_Y) {
             dinoY = GROUND_Y;
@@ -678,9 +678,9 @@ function updateAndRender() {
             let hitOffsetX = isJumping ? 140 : 105;
             let hitOffsetY = isJumping ? 165 : 85;
             let dinoHitbox = { x: dinoX + hitOffsetX, y: dinoY + hitOffsetY, w: hitWidth, h: hitHeight };
-            let infY = level === 1 ? -60 : (level === 2 ? -30 : -10);
+            let infY = level === 1 ? -25 : (level === 2 ? -30 : -10);
             
-            let hMod = level === 1 ? 0.60 : (level === 2 ? 0.72 : 0.75);
+            let hMod = level === 1 ? 0.70 : (level === 2 ? 0.72 : 0.75);
             let obsHitbox = {
                 x: obs.x + (obs.w * ((1 - hMod) / 2)), 
                 y: obs.y - (infY / 2), 
