@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Stranger Alps</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
@@ -17,8 +17,6 @@
             height: 100dvh;
             overflow: hidden;
             font-family: 'Share Tech Mono', monospace;
-            touch-action: none;
-            -webkit-text-size-adjust: 100%;
         }
         canvas {
             background-color: rgb(3, 2, 8);
@@ -45,11 +43,6 @@
 const canvas = document.getElementById("gameCanvas");
 let ctx = canvas.getContext("2d");
 
-ctx.imageSmoothingEnabled = false;
-ctx.mozImageSmoothingEnabled = false;
-ctx.webkitImageSmoothingEnabled = false;
-ctx.msImageSmoothingEnabled = false;
-
 const FPS = 60;
 const GRAVITY = 1.6;
 const JUMP_STRENGTH = -39;
@@ -61,9 +54,8 @@ const COLORS = {
     TEXT: "rgb(242, 17, 17)",
     WHITE: "rgb(255, 255, 255)",
     GLOW_GREY: "rgb(210, 200, 202)",
-    ASH: "rgba(180, 180, 200, 0.4)", 
-    REC_RED: "rgb(255, 0, 0)",
-    TRAIL: "rgba(242, 17, 17, 0.15)"
+    ASH: "rgb(180, 180, 200)", 
+    REC_RED: "rgb(255, 0, 0)"
 };
 
 let state = 0; 
@@ -84,8 +76,6 @@ let shakeTimer = 0;
 let shakeIntensity = 0;
 let isExportingScreenshot = false;
 
-let dinoTrail = [];
-
 const dinoImgs = {};
 const obsImgs = {};
 
@@ -101,6 +91,11 @@ const sfx = {
 let lastTime = performance.now();
 let smoothDt = 1;
 let animTicks = 0;
+
+const vignetteGradient = ctx.createRadialGradient(canvas.width/2, canvas.height/2, canvas.width/4, canvas.width/2, canvas.height/2, canvas.width * 0.8);
+vignetteGradient.addColorStop(0, "rgba(0,0,0,0)");
+vignetteGradient.addColorStop(0.6, "rgba(255, 0, 0, 0.04)");
+vignetteGradient.addColorStop(1, "rgba(0, 0, 0, 0.85)");
 
 function initAudioContext() {
     if (!audioCtx) {
@@ -120,16 +115,8 @@ function initAudioContext() {
     }
 }
 
-const unlockAudio = () => {
-    initAudioContext();
-    if (sfx.musicElement && state !== 0) sfx.musicElement.play().catch(() => {});
-    window.removeEventListener('click', unlockAudio);
-    window.removeEventListener('touchstart', unlockAudio);
-};
-window.addEventListener('click', unlockAudio, { passive: true });
-window.addEventListener('touchstart', unlockAudio, { passive: true });
-
 function playSFX(name) {
+    initAudioContext();
     if (!audioCtx || !audioBuffers[name]) return;
     const source = audioCtx.createBufferSource();
     source.buffer = audioBuffers[name];
@@ -178,13 +165,11 @@ function playNextTrack() {
 }
 
 const ashParticles = [];
-for (let i = 0; i < 20; i++) {
+for (let i = 0; i < 40; i++) {
     ashParticles.push({
         x: Math.random() * canvas.width,
         y: Math.random() * canvas.height,
-        size: 1.0 + Math.random() * 1.5,
-        speed: 0.8 + Math.random() * 2.5,
-        opacity: 0.15 + Math.random() * 0.25
+        speed: 1.0 + Math.random() * 3.0
     });
 }
 
@@ -220,7 +205,7 @@ class MountainLayer {
     }
 
     update(dt) {
-        let totalSpeed = this.speed * (1.2 + level * 0.2) * 2 * dt;
+        let totalSpeed = this.speed * (1.2 + level * 0.25) * 2 * dt;
         this.offset -= totalSpeed;
         if (this.offset <= -this.totalWidth) this.offset += this.totalWidth;
     }
@@ -273,22 +258,12 @@ function drawNeonText(text, fontStr, color, x, y, spacing = 6, center = false) {
     let currX = center ? x - (totalW / 2) : x;
     
     ctx.save();
-    
-    if (state === 1 && !isExportingScreenshot) {
-        let baseCurrX = currX;
-        for (let char of text) {
-            ctx.fillStyle = "rgba(255, 0, 0, 0.8)";
-            ctx.fillText(char, baseCurrX + 2, y + 2);
-            baseCurrX += ctx.measureText(char).width + spacing;
-        }
+    if (isStrangerTitle) {
+        ctx.shadowColor = "rgba(255, 0, 0, 0.9)";
+        ctx.shadowBlur = 20;
     } else {
-        if (isStrangerTitle) {
-            ctx.shadowColor = "rgba(255, 0, 0, 0.9)";
-            ctx.shadowBlur = 20;
-        } else {
-            ctx.shadowColor = "rgba(255, 0, 0, 0.5)";
-            ctx.shadowBlur = 8;
-        }
+        ctx.shadowColor = "rgba(255, 0, 0, 0.5)";
+        ctx.shadowBlur = 8;
     }
 
     for (let char of text) {
@@ -306,11 +281,7 @@ function drawNeonText(text, fontStr, color, x, y, spacing = 6, center = false) {
 }
 
 function drawVignette() {
-    let vignette = ctx.createRadialGradient(canvas.width/2, canvas.height/2, canvas.width/4, canvas.width/2, canvas.height/2, canvas.width * 0.8);
-    vignette.addColorStop(0, "rgba(0,0,0,0)");
-    vignette.addColorStop(0.6, "rgba(255, 0, 0, 0.04)");
-    vignette.addColorStop(1, "rgba(0, 0, 0, 0.85)");
-    ctx.fillStyle = vignette;
+    ctx.fillStyle = vignetteGradient;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 }
 
@@ -329,10 +300,9 @@ function resetLevel(fullReset = false) {
     obstacles = [];
     spawnTimer = 0;
     finishingLevel = false;
-    dinoTrail = [];
     
-    let minSpawn = level === 1 ? 40 : (level === 2 ? 50 : 42);
-    let maxSpawn = level === 1 ? 110 : (level === 2 ? 120 : 100);
+    let minSpawn = level === 1 ? 90 : (level === 2 ? 50 : 32);
+    let maxSpawn = level === 1 ? 160 : (level === 2 ? 95 : 62);
     nextSpawnThreshold = Math.floor(Math.random() * (maxSpawn - minSpawn + 1)) + minSpawn;
     
     levelStartTicks = Date.now();
@@ -340,6 +310,7 @@ function resetLevel(fullReset = false) {
 }
 
 function triggerHit() {
+    initAudioContext();
     playSFX('hit');
     shakeTimer = 12;
     shakeIntensity = 6;
@@ -356,8 +327,6 @@ function downloadScreenshot() {
         
         let tempCtx = ctx;
         ctx = offCtx;
-        
-        ctx.imageSmoothingEnabled = false;
         
         isExportingScreenshot = true;
         drawScene(animTicks);
@@ -507,11 +476,14 @@ function handleMenuSelection(clientX, clientY) {
 window.addEventListener("keydown", (e) => { 
     if (e.repeat) return;
     if (e.code === "Space") {
+        initAudioContext();
         handleAction(); 
     }
 });
 
-canvas.addEventListener("mousedown", (e) => {
+canvas.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    initAudioContext();
     if (state === 3 || state === 2) {
         handleMenuSelection(e.clientX, e.clientY);
     } else {
@@ -519,18 +491,7 @@ canvas.addEventListener("mousedown", (e) => {
     }
 });
 
-canvas.addEventListener("touchstart", (e) => {
-    e.preventDefault();
-    const touch = e.touches[0];
-    if (state === 3 || state === 2) {
-        handleMenuSelection(touch.clientX, touch.clientY);
-    } else {
-        handleAction();
-    }
-}, { passive: false });
-
 function drawScene(ticks) {
-    ctx.imageSmoothingEnabled = false;
     ctx.fillStyle = COLORS.SKY;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -564,33 +525,18 @@ function drawScene(ticks) {
     }
     ctx.stroke();
 
+    ctx.fillStyle = COLORS.ASH;
     for (let p of ashParticles) {
-        ctx.fillStyle = `rgba(180, 180, 200, ${p.opacity})`;
         ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
         ctx.fill();
     }
 
     if (!isExportingScreenshot && state !== 2) {
         let dImg = dinoImgs[level];
-        let size = level === 1 ? 390 : (level === 2 ? 340 : 290);
-
-        if (state === 1) {
-            for (let i = 0; i < dinoTrail.length; i++) {
-                let pt = dinoTrail[i];
-                ctx.save();
-                ctx.globalAlpha = pt.alpha;
-                ctx.translate(pt.x + size / 2, pt.y + size / 2);
-                ctx.rotate((pt.angle * Math.PI) / 180);
-                if (dImg && dImg.complete) {
-                    ctx.drawImage(dImg, -size / 2, -size / 2, size, size);
-                }
-                ctx.restore();
-            }
-        }
-
         if (dImg && dImg.complete) {
             ctx.save();
+            let size = level === 1 ? 390 : (level === 2 ? 340 : 290);
             ctx.translate(dinoX + size / 2, dinoY + size / 2);
             ctx.rotate(((jumpAngle % 360) * Math.PI) / 180);
             ctx.drawImage(dImg, -size / 2, -size / 2, size, size);
@@ -622,7 +568,9 @@ function updateAndRender() {
     if (shakeTimer > 0) shakeTimer -= smoothDt;
 
     for (let p of ashParticles) {
-        p.x -= p.speed * smoothDt;
+        if (state === 1 || state === 0 || state === 3 || state === 2) {
+            p.x -= p.speed * smoothDt;
+        }
         if (p.x < 0) {
             p.x = canvas.width;
             p.y = Math.random() * canvas.height;
@@ -633,14 +581,9 @@ function updateAndRender() {
         farLayer.update(smoothDt);
         nearLayer.update(smoothDt);
         
-        dinoTrail.push({x: dinoX, y: dinoY, angle: jumpAngle, alpha: 0.15});
-        if (dinoTrail.length > 2) dinoTrail.shift();
-        for(let pt of dinoTrail) { pt.alpha -= 0.05 * smoothDt; }
-
         dinoVelY += GRAVITY * smoothDt;
         dinoY += dinoVelY * smoothDt;
-        if (isJumping) jumpAngle -= 15.0 * smoothDt;
-        
+        if (isJumping) jumpAngle -= 11 * smoothDt;
         if (dinoY >= GROUND_Y) {
             dinoY = GROUND_Y;
             isJumping = false;
@@ -662,8 +605,8 @@ function updateAndRender() {
                 spawnTimer = 0;
                 rocksSpawned++;
                 
-                let minSpawn = level === 1 ? 40 : (level === 2 ? 50 : 42);
-                let maxSpawn = level === 1 ? 110 : (level === 2 ? 120 : 100);
+                let minSpawn = level === 1 ? 90 : (level === 2 ? 50 : 32);
+                let maxSpawn = level === 1 ? 160 : (level === 2 ? 95 : 62);
                 nextSpawnThreshold = Math.floor(Math.random() * (maxSpawn - minSpawn + 1)) + minSpawn;
                 
                 if (rocksSpawned >= rocksNeeded[level]) finishingLevel = true;
@@ -678,7 +621,7 @@ function updateAndRender() {
 
         for (let i = obstacles.length - 1; i >= 0; i--) {
             let obs = obstacles[i];
-            let speedMod = level === 1 ? 16.0 : (level === 2 ? 19.5 : 23.0);
+            let speedMod = level === 1 ? 11.5 : (level === 2 ? 17.0 : 23.5);
             obs.x -= speedMod * smoothDt;
             
             let hitWidth = isJumping ? 65 : 135;
@@ -686,9 +629,9 @@ function updateAndRender() {
             let hitOffsetX = isJumping ? 140 : 105;
             let hitOffsetY = isJumping ? 165 : 85;
             let dinoHitbox = { x: dinoX + hitOffsetX, y: dinoY + hitOffsetY, w: hitWidth, h: hitHeight };
-            let infY = level === 1 ? 20 : (level === 2 ? -30 : -10);
+            let infY = level === 3 ? -20 : -75;
             
-            let hMod = level === 1 ? 0.92 : (level === 2 ? 0.72 : 0.75);
+            let hMod = level === 1 ? 0.45 : (level === 2 ? 0.52 : 0.60);
             let obsHitbox = {
                 x: obs.x + (obs.w * ((1 - hMod) / 2)), 
                 y: obs.y - (infY / 2), 
