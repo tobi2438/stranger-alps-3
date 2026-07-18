@@ -539,10 +539,6 @@ function drawScene(ticks) {
             let size = level === 1 ? 390 : (level === 2 ? 340 : 290);
             ctx.translate(dinoX + size / 2, dinoY + size / 2);
             ctx.rotate(((jumpAngle % 360) * Math.PI) / 180);
-            if (isJumping) {
-                let blurAmount = Math.min(6, Math.abs(dinoVelY) * 0.25);
-                ctx.filter = `blur(${blurAmount}px)`;
-            }
             ctx.drawImage(dImg, -size / 2, -size / 2, size, size);
             ctx.restore();
         }
