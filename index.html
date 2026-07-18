@@ -45,6 +45,11 @@
 const canvas = document.getElementById("gameCanvas");
 let ctx = canvas.getContext("2d");
 
+ctx.imageSmoothingEnabled = false;
+ctx.mozImageSmoothingEnabled = false;
+ctx.webkitImageSmoothingEnabled = false;
+ctx.msImageSmoothingEnabled = false;
+
 const FPS = 60;
 const GRAVITY = 1.6;
 const JUMP_STRENGTH = -39;
@@ -352,6 +357,8 @@ function downloadScreenshot() {
         let tempCtx = ctx;
         ctx = offCtx;
         
+        ctx.imageSmoothingEnabled = false;
+        
         isExportingScreenshot = true;
         drawScene(animTicks);
         isExportingScreenshot = false;
@@ -523,6 +530,7 @@ canvas.addEventListener("touchstart", (e) => {
 }, { passive: false });
 
 function drawScene(ticks) {
+    ctx.imageSmoothingEnabled = false;
     ctx.fillStyle = COLORS.SKY;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -631,7 +639,7 @@ function updateAndRender() {
 
         dinoVelY += GRAVITY * smoothDt;
         dinoY += dinoVelY * smoothDt;
-        if (isJumping) jumpAngle -= 5.5 * smoothDt;
+        if (isJumping) jumpAngle -= 15.0 * smoothDt;
         
         if (dinoY >= GROUND_Y) {
             dinoY = GROUND_Y;
@@ -678,9 +686,9 @@ function updateAndRender() {
             let hitOffsetX = isJumping ? 140 : 105;
             let hitOffsetY = isJumping ? 165 : 85;
             let dinoHitbox = { x: dinoX + hitOffsetX, y: dinoY + hitOffsetY, w: hitWidth, h: hitHeight };
-            let infY = level === 1 ? -25 : (level === 2 ? -30 : -10);
+            let infY = level === 1 ? 20 : (level === 2 ? -30 : -10);
             
-            let hMod = level === 1 ? 0.70 : (level === 2 ? 0.72 : 0.75);
+            let hMod = level === 1 ? 0.92 : (level === 2 ? 0.72 : 0.75);
             let obsHitbox = {
                 x: obs.x + (obs.w * ((1 - hMod) / 2)), 
                 y: obs.y - (infY / 2), 
