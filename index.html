@@ -80,7 +80,6 @@ let shakeIntensity = 0;
 let isExportingScreenshot = false;
 
 let dinoTrail = [];
-let landParticles = [];
 
 const dinoImgs = {};
 const obsImgs = {};
@@ -272,7 +271,6 @@ function drawNeonText(text, fontStr, color, x, y, spacing = 6, center = false) {
     
     if (state === 1 && !isExportingScreenshot) {
         let baseCurrX = currX;
-        
         for (let char of text) {
             ctx.fillStyle = "rgba(255, 0, 0, 0.8)";
             ctx.fillText(char, baseCurrX + 2, y + 2);
@@ -327,7 +325,6 @@ function resetLevel(fullReset = false) {
     spawnTimer = 0;
     finishingLevel = false;
     dinoTrail = [];
-    landParticles = [];
     
     let minSpawn = level === 1 ? 45 : (level === 2 ? 65 : 55);
     let maxSpawn = level === 1 ? 140 : (level === 2 ? 160 : 145);
@@ -343,19 +340,6 @@ function triggerHit() {
     shakeIntensity = 6;
     state = 3;
     clickCooldown = 25;
-}
-
-function createLandingPuff(x, y) {
-    for (let i = 0; i < 12; i++) {
-        landParticles.push({
-            x: x + 150 + (Math.random() - 0.5) * 80,
-            y: y + 300,
-            vx: (Math.random() - 0.5) * 8,
-            vy: -Math.random() * 4 - 2,
-            alpha: 1.0,
-            radius: Math.random() * 5 + 3
-        });
-    }
 }
 
 function downloadScreenshot() {
@@ -572,7 +556,6 @@ function drawScene(ticks) {
     }
     ctx.stroke();
 
-    
     for (let p of ashParticles) {
         ctx.fillStyle = `rgba(180, 180, 200, ${p.opacity})`;
         ctx.beginPath();
@@ -580,19 +563,10 @@ function drawScene(ticks) {
         ctx.fill();
     }
 
-    
-    for (let p of landParticles) {
-        ctx.fillStyle = `rgba(242, 17, 17, ${p.alpha})`;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-        ctx.fill();
-    }
-
     if (!isExportingScreenshot && state !== 2) {
         let dImg = dinoImgs[level];
         let size = level === 1 ? 390 : (level === 2 ? 340 : 290);
 
-        
         if (state === 1) {
             for (let i = 0; i < dinoTrail.length; i++) {
                 let pt = dinoTrail[i];
@@ -647,19 +621,9 @@ function updateAndRender() {
         }
     }
 
-    
-    for (let i = landParticles.length - 1; i >= 0; i--) {
-        let p = landParticles[i];
-        p.x += p.vx * smoothDt;
-        p.y += p.vy * smoothDt;
-        p.alpha -= 0.04 * smoothDt;
-        if (p.alpha <= 0) landParticles.splice(i, 1);
-    }
-
     if (state === 1) {
         farLayer.update(smoothDt);
         nearLayer.update(smoothDt);
-        
         
         dinoTrail.push({x: dinoX, y: dinoY, angle: jumpAngle, alpha: 0.45});
         if (dinoTrail.length > 5) dinoTrail.shift();
@@ -671,7 +635,8 @@ function updateAndRender() {
         
         if (dinoY >= GROUND_Y) {
             if (isJumping) {
-                createLandingPuff(dinoX, GROUND_Y);
+                shakeTimer = 5;
+                shakeIntensity = 3;
             }
             dinoY = GROUND_Y;
             isJumping = false;
