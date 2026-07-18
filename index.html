@@ -326,8 +326,8 @@ function resetLevel(fullReset = false) {
     finishingLevel = false;
     dinoTrail = [];
     
-    let minSpawn = level === 1 ? 45 : (level === 2 ? 65 : 55);
-    let maxSpawn = level === 1 ? 140 : (level === 2 ? 160 : 145);
+    let minSpawn = level === 1 ? 40 : (level === 2 ? 50 : 42);
+    let maxSpawn = level === 1 ? 110 : (level === 2 ? 120 : 100);
     nextSpawnThreshold = Math.floor(Math.random() * (maxSpawn - minSpawn + 1)) + minSpawn;
     
     levelStartTicks = Date.now();
@@ -634,10 +634,6 @@ function updateAndRender() {
         if (isJumping) jumpAngle -= 11 * smoothDt;
         
         if (dinoY >= GROUND_Y) {
-            if (isJumping) {
-                shakeTimer = 5;
-                shakeIntensity = 3;
-            }
             dinoY = GROUND_Y;
             isJumping = false;
             jumpAngle = 0;
@@ -658,8 +654,8 @@ function updateAndRender() {
                 spawnTimer = 0;
                 rocksSpawned++;
                 
-                let minSpawn = level === 1 ? 45 : (level === 2 ? 65 : 55);
-                let maxSpawn = level === 1 ? 140 : (level === 2 ? 160 : 145);
+                let minSpawn = level === 1 ? 40 : (level === 2 ? 50 : 42);
+                let maxSpawn = level === 1 ? 110 : (level === 2 ? 120 : 100);
                 nextSpawnThreshold = Math.floor(Math.random() * (maxSpawn - minSpawn + 1)) + minSpawn;
                 
                 if (rocksSpawned >= rocksNeeded[level]) finishingLevel = true;
@@ -674,7 +670,7 @@ function updateAndRender() {
 
         for (let i = obstacles.length - 1; i >= 0; i--) {
             let obs = obstacles[i];
-            let speedMod = level === 1 ? 14.4 : (level === 2 ? 16.5 : 19.8);
+            let speedMod = level === 1 ? 16.0 : (level === 2 ? 19.5 : 23.0);
             obs.x -= speedMod * smoothDt;
             
             let hitWidth = isJumping ? 65 : 135;
@@ -682,9 +678,9 @@ function updateAndRender() {
             let hitOffsetX = isJumping ? 140 : 105;
             let hitOffsetY = isJumping ? 165 : 85;
             let dinoHitbox = { x: dinoX + hitOffsetX, y: dinoY + hitOffsetY, w: hitWidth, h: hitHeight };
-            let infY = level === 3 ? -20 : -75;
+            let infY = level === 1 ? -60 : (level === 2 ? -30 : -10);
             
-            let hMod = level === 1 ? 0.56 : (level === 2 ? 0.45 : 0.50);
+            let hMod = level === 1 ? 0.60 : (level === 2 ? 0.72 : 0.75);
             let obsHitbox = {
                 x: obs.x + (obs.w * ((1 - hMod) / 2)), 
                 y: obs.y - (infY / 2), 
